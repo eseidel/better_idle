@@ -3526,13 +3526,24 @@ class GlobalState {
     return maxCount;
   }
 
-  /// Returns potion upgrades sorted by input tier ascending (bottom-up).
+  /// Returns potion upgrades sorted by input tier ascending (bottom-up),
+  /// filtered to only include upgrades the player's mastery level allows.
   List<ItemUpgrade> get _potionUpgrades {
-    // Sort by input potion tier ascending so lower tiers upgrade first.
     return registries.itemUpgrades.all.where((upgrade) {
       if (upgrade.itemCosts.isEmpty) return false;
       final inputItem = registries.items.byId(upgrade.itemCosts.first.itemId);
-      return inputItem.isPotion;
+      if (!inputItem.isPotion) return false;
+
+      // Check mastery allows the output tier.
+      final outputItem = registries.items.byId(upgrade.upgradedItemId);
+      final outputTier = outputItem.potionTier ?? 0;
+      final recipeId = registries.herblore.recipeIdForPotionItem(outputItem.id);
+      if (recipeId == null) return true; // Not a herblore potion, allow.
+      final action = registries.herblore.byId(recipeId);
+      if (action == null) return true;
+      final masteryLevel = actionState(action.id).masteryLevel;
+      return outputTier <=
+          HerbloreAction.tierIndexForMasteryLevel(masteryLevel);
     }).toList()..sort((a, b) {
       final tierA =
           registries.items.byId(a.itemCosts.first.itemId).potionTier ?? 0;

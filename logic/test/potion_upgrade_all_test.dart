@@ -3,6 +3,16 @@ import 'package:test/test.dart';
 
 import 'test_helper.dart';
 
+/// Returns action states with max mastery for all herblore actions,
+/// so potion upgrades are unrestricted by mastery.
+Map<ActionId, ActionState> _maxHerbloreMastery() {
+  final maxMasteryXp = startXpForLevel(99);
+  return {
+    for (final action in testRegistries.herblore.actions)
+      action.id: ActionState(masteryXp: maxMasteryXp),
+  };
+}
+
 void main() {
   late Item potionI;
   late Item potionII;
@@ -23,6 +33,7 @@ void main() {
     test('basic upgrade: 9 tier-I cascades to 1 tier-III', () {
       final state = GlobalState.test(
         testRegistries,
+        actionStates: _maxHerbloreMastery(),
         inventory: Inventory.fromItems(testItems, [
           ItemStack(potionI, count: 9),
         ]),
@@ -41,6 +52,7 @@ void main() {
     test('cascading: 27 tier-I becomes 1 tier-IV', () {
       final state = GlobalState.test(
         testRegistries,
+        actionStates: _maxHerbloreMastery(),
         inventory: Inventory.fromItems(testItems, [
           ItemStack(potionI, count: 27),
         ]),
@@ -60,6 +72,7 @@ void main() {
     test('remainders: 10 tier-I cascades with remainders', () {
       final state = GlobalState.test(
         testRegistries,
+        actionStates: _maxHerbloreMastery(),
         inventory: Inventory.fromItems(testItems, [
           ItemStack(potionI, count: 10),
         ]),
@@ -143,7 +156,10 @@ void main() {
     });
 
     test('inventory full + input fully consumed: allowed (slot freed)', () {
-      final state = GlobalState.test(testRegistries);
+      final state = GlobalState.test(
+        testRegistries,
+        actionStates: _maxHerbloreMastery(),
+      );
       final capacity = state.inventoryCapacity;
 
       // Fill with capacity-1 filler + exactly 3 potionI (fully consumed).
@@ -159,6 +175,7 @@ void main() {
 
       final fullState = GlobalState.test(
         testRegistries,
+        actionStates: _maxHerbloreMastery(),
         inventory: Inventory.fromItems(testItems, fillerItems),
       );
 
@@ -175,7 +192,10 @@ void main() {
     });
 
     test('inventory full + output already exists: allowed (stacks)', () {
-      final state = GlobalState.test(testRegistries);
+      final state = GlobalState.test(
+        testRegistries,
+        actionStates: _maxHerbloreMastery(),
+      );
       final capacity = state.inventoryCapacity;
 
       // Fill with capacity-2 filler + potionI + potionII (already exists).
@@ -193,6 +213,7 @@ void main() {
 
       final fullState = GlobalState.test(
         testRegistries,
+        actionStates: _maxHerbloreMastery(),
         inventory: Inventory.fromItems(testItems, fillerItems),
       );
 
@@ -215,6 +236,7 @@ void main() {
 
       final state = GlobalState.test(
         testRegistries,
+        actionStates: _maxHerbloreMastery(),
         inventory: Inventory.fromItems(testItems, [
           ItemStack(potionI, count: 9),
           ItemStack(otherPotionI, count: 6),
@@ -238,6 +260,7 @@ void main() {
     test('returns true when upgradeable potions exist', () {
       final state = GlobalState.test(
         testRegistries,
+        actionStates: _maxHerbloreMastery(),
         inventory: Inventory.fromItems(testItems, [
           ItemStack(potionI, count: 3),
         ]),
@@ -271,6 +294,88 @@ void main() {
     test('returns false with empty inventory', () {
       final state = GlobalState.test(testRegistries);
       expect(state.canUpgradeAllPotions, isFalse);
+    });
+
+    test('returns false when mastery too low for upgrade', () {
+      // At mastery level 1 (default), only tier I is allowed.
+      // 3x tier I → 1x tier II should be blocked.
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(potionI, count: 3),
+        ]),
+      );
+
+      expect(state.canUpgradeAllPotions, isFalse);
+    });
+  });
+
+  group('mastery-gated upgrades', () {
+    test('mastery 20 allows upgrade to tier II but not III', () {
+      final recipeId = testRegistries.herblore.recipeIdForPotionItem(
+        potionI.id,
+      )!;
+      final action = testRegistries.herblore.byId(recipeId)!;
+
+      final state = GlobalState.test(
+        testRegistries,
+        actionStates: {action.id: ActionState(masteryXp: startXpForLevel(20))},
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(potionI, count: 9),
+        ]),
+      );
+
+      final (newState, result) = state.upgradeAllPotions();
+
+      // 9 I → 3 II (3 upgrades). Can't go to III (needs mastery 50).
+      expect(result.totalUpgradesMade, 3);
+      expect(newState.inventory.countOfItem(potionI), 0);
+      expect(newState.inventory.countOfItem(potionII), 3);
+      expect(newState.inventory.countOfItem(potionIII), 0);
+    });
+
+    test('mastery 50 allows upgrade to tier III but not IV', () {
+      final recipeId = testRegistries.herblore.recipeIdForPotionItem(
+        potionI.id,
+      )!;
+      final action = testRegistries.herblore.byId(recipeId)!;
+
+      final state = GlobalState.test(
+        testRegistries,
+        actionStates: {action.id: ActionState(masteryXp: startXpForLevel(50))},
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(potionI, count: 27),
+        ]),
+      );
+
+      final (newState, result) = state.upgradeAllPotions();
+
+      // 27 I → 9 II → 3 III. Can't go to IV (needs mastery 90).
+      expect(result.totalUpgradesMade, 12);
+      expect(newState.inventory.countOfItem(potionI), 0);
+      expect(newState.inventory.countOfItem(potionII), 0);
+      expect(newState.inventory.countOfItem(potionIII), 3);
+      expect(newState.inventory.countOfItem(potionIV), 0);
+    });
+
+    test('mastery 90 allows full cascade to tier IV', () {
+      final recipeId = testRegistries.herblore.recipeIdForPotionItem(
+        potionI.id,
+      )!;
+      final action = testRegistries.herblore.byId(recipeId)!;
+
+      final state = GlobalState.test(
+        testRegistries,
+        actionStates: {action.id: ActionState(masteryXp: startXpForLevel(90))},
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(potionI, count: 27),
+        ]),
+      );
+
+      final (newState, result) = state.upgradeAllPotions();
+
+      expect(result.totalUpgradesMade, 13);
+      expect(newState.inventory.countOfItem(potionIV), 1);
     });
   });
 }
