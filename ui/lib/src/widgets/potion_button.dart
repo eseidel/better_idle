@@ -21,7 +21,7 @@ class PotionButton extends StatelessWidget {
 
     // Find the selected potion for the active skill.
     Item? activePotion;
-    int chargesRemaining = 0;
+    var chargesRemaining = 0;
     if (activeSkill != null) {
       final potionId = state.selectedPotions[activeSkill.id];
       if (potionId != null) {
