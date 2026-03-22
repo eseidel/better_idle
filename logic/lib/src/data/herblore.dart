@@ -121,7 +121,7 @@ class HerbloreAction extends SkillAction {
   /// - Tier II (1): mastery level 20+
   /// - Tier III (2): mastery level 50+
   /// - Tier IV (3): mastery level 90+
-  static int tierForMasteryLevel(int masteryLevel) {
+  static int tierIndexForMasteryLevel(int masteryLevel) {
     if (masteryLevel >= 90) return 3;
     if (masteryLevel >= 50) return 2;
     if (masteryLevel >= 20) return 1;
@@ -130,8 +130,8 @@ class HerbloreAction extends SkillAction {
 
   /// Returns the potion ID to produce at the given mastery level.
   MelvorId productIdForMasteryLevel(int masteryLevel) {
-    final tier = tierForMasteryLevel(masteryLevel);
-    return potionIds[tier.clamp(0, potionIds.length - 1)];
+    final tierIndex = tierIndexForMasteryLevel(masteryLevel);
+    return potionIds[tierIndex.clamp(0, potionIds.length - 1)];
   }
 }
 

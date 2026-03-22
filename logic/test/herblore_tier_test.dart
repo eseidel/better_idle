@@ -23,28 +23,28 @@ void main() {
     herbloreAction = testRegistries.herblore.byId(recipeId)!;
   });
 
-  group('HerbloreAction.tierForMasteryLevel', () {
+  group('HerbloreAction.tierIndexForMasteryLevel', () {
     test('returns tier 0 for mastery levels 1-19', () {
-      expect(HerbloreAction.tierForMasteryLevel(1), 0);
-      expect(HerbloreAction.tierForMasteryLevel(10), 0);
-      expect(HerbloreAction.tierForMasteryLevel(19), 0);
+      expect(HerbloreAction.tierIndexForMasteryLevel(1), 0);
+      expect(HerbloreAction.tierIndexForMasteryLevel(10), 0);
+      expect(HerbloreAction.tierIndexForMasteryLevel(19), 0);
     });
 
     test('returns tier 1 for mastery levels 20-49', () {
-      expect(HerbloreAction.tierForMasteryLevel(20), 1);
-      expect(HerbloreAction.tierForMasteryLevel(35), 1);
-      expect(HerbloreAction.tierForMasteryLevel(49), 1);
+      expect(HerbloreAction.tierIndexForMasteryLevel(20), 1);
+      expect(HerbloreAction.tierIndexForMasteryLevel(35), 1);
+      expect(HerbloreAction.tierIndexForMasteryLevel(49), 1);
     });
 
     test('returns tier 2 for mastery levels 50-89', () {
-      expect(HerbloreAction.tierForMasteryLevel(50), 2);
-      expect(HerbloreAction.tierForMasteryLevel(70), 2);
-      expect(HerbloreAction.tierForMasteryLevel(89), 2);
+      expect(HerbloreAction.tierIndexForMasteryLevel(50), 2);
+      expect(HerbloreAction.tierIndexForMasteryLevel(70), 2);
+      expect(HerbloreAction.tierIndexForMasteryLevel(89), 2);
     });
 
     test('returns tier 3 for mastery levels 90+', () {
-      expect(HerbloreAction.tierForMasteryLevel(90), 3);
-      expect(HerbloreAction.tierForMasteryLevel(99), 3);
+      expect(HerbloreAction.tierIndexForMasteryLevel(90), 3);
+      expect(HerbloreAction.tierIndexForMasteryLevel(99), 3);
     });
   });
 
