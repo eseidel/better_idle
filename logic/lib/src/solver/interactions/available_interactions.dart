@@ -97,7 +97,7 @@ List<BuyShopItem> _availableShopPurchases(GlobalState state) {
       bankSlotsPurchased: state.shop.bankSlotsPurchased,
       hasMerchantsPermit: state.hasMerchantsPermit,
     );
-    // TODO: Support non-GP purchases (e.g. slayer coins, item costs).
+    // TODO(eseidel): Support non-GP purchases (e.g. slayer coins, item costs).
     if (currencyCosts.length != 1) continue;
     final (currency, cost) = currencyCosts.first;
     if (currency != Currency.gp) continue;
