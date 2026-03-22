@@ -1477,10 +1477,22 @@ ForegroundResult _restartOrStop(
           }
 
           builder.incrementSlayerTaskCompletion(category.id);
-        }
 
-        // Clear the task but keep fighting.
-        builder.clearSlayerTask();
+          // Auto Slayer shop upgrade: auto-roll a new task (free).
+          final taskModifiers = builder.state.createCombatModifierProvider(
+            conditionContext: ConditionContext.empty,
+          );
+          if (taskModifiers.autoSlayerUnlocked > 0) {
+            // startAction sets up fresh combat state; skip old-monster respawn.
+            builder.autoRollSlayerTask(category: category, random: random);
+            return (ForegroundResult.continued, ticksConsumed);
+          } else {
+            builder.clearSlayerTask();
+          }
+        } else {
+          // Category not found; just clear the task.
+          builder.clearSlayerTask();
+        }
       } else {
         builder.updateSlayerTask(updatedTask);
       }

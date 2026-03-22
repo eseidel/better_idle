@@ -189,7 +189,7 @@ void main() {
           totalTicks += 1000;
         }
 
-        // Task should be cleared after completion.
+        // Task should be cleared after completion (no Auto Slayer).
         expect(state.slayerTask, isNull);
 
         // Combat should continue (player keeps fighting).
@@ -202,6 +202,75 @@ void main() {
         expect(state.slayerTaskCompletions[category.id], 1);
       },
     );
+
+    test('Auto Slayer: completing task auto-rolls a new task for free', () {
+      final category = easyCategory();
+
+      // Find the Auto Slayer shop purchase.
+      final autoSlayerPurchase = testRegistries.shop.all.firstWhere(
+        (p) => p.contains.modifiers.modifiers.any(
+          (m) => m.name == 'autoSlayerUnlocked',
+        ),
+      );
+
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        currencies: {
+          for (final cost in category.rollCost.costs)
+            cost.currency: cost.amount * 10,
+        },
+        shop: ShopState(purchaseCounts: {autoSlayerPurchase.id: 1}),
+      );
+      final random = Random(42);
+      state = state.startSlayerTask(category: category, random: random);
+
+      // Start fighting the task's monster.
+      final monster = testRegistries.combat.monsterById(
+        state.slayerTask!.monsterId,
+      );
+      state = state.startAction(monster, random: random);
+
+      // Record currency after the initial (paid) roll.
+      final currenciesAfterRoll = <Currency, int>{
+        for (final c in Currency.values) c: state.currency(c),
+      };
+
+      // Override killsRequired to a small number for test speed.
+      const testKills = 3;
+      state = state.copyWith(
+        slayerTask: state.slayerTask!.copyWith(killsRequired: testKills),
+      );
+
+      // Process ticks until the first task completes.
+      var totalTicks = 0;
+      while ((state.slayerTaskCompletions[category.id] ?? 0) == 0 &&
+          totalTicks < 50000) {
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 1000, random: random);
+        state = builder.build();
+        totalTicks += 1000;
+      }
+
+      // A new task should have been auto-rolled (not null).
+      expect(state.slayerTask, isNotNull);
+      expect(state.slayerTask!.categoryId, category.id);
+
+      // Combat should continue.
+      expect(state.activeActivity, isNotNull);
+
+      // Should have incremented task completion count at least once.
+      expect(state.slayerTaskCompletions[category.id], greaterThanOrEqualTo(1));
+
+      // Auto-roll should NOT charge the roll cost.
+      for (final cost in category.rollCost.costs) {
+        expect(
+          state.currency(cost.currency),
+          greaterThanOrEqualTo(currenciesAfterRoll[cost.currency]!),
+          reason: 'Auto-roll should not charge roll cost',
+        );
+      }
+    });
 
     test('slayer task tracks kills between monster deaths', () {
       final category = easyCategory();

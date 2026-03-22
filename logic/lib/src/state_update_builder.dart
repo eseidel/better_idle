@@ -605,6 +605,21 @@ class StateUpdateBuilder {
     _state = _state.clearSlayerTask();
   }
 
+  /// Automatically rolls a new slayer task from the same category (free)
+  /// and switches combat to the new task's monster.
+  void autoRollSlayerTask({
+    required SlayerTaskCategory category,
+    required Random random,
+  }) {
+    final task = _state.rollSlayerTask(category: category, random: random);
+    if (task == null) return;
+    _state = _state.copyWith(slayerTask: task);
+
+    // Switch combat to the new task's monster.
+    final newMonster = registries.combat.monsterById(task.monsterId);
+    _state = _state.startAction(newMonster, random: random);
+  }
+
   /// Increments the completion count for a slayer task category.
   void incrementSlayerTaskCompletion(MelvorId categoryId) {
     final currentCount = _state.slayerTaskCompletions[categoryId] ?? 0;

@@ -1687,10 +1687,45 @@ class GlobalState {
     );
   }
 
+  /// Rolls a new [SlayerTask] for the given [category] without modifying
+  /// state. Returns `null` if no eligible monsters exist.
+  SlayerTask? rollSlayerTask({
+    required SlayerTaskCategory category,
+    required Random random,
+  }) {
+    final selection = category.monsterSelection;
+    final eligibleMonsters = <CombatAction>[];
+
+    if (selection is CombatLevelSelection) {
+      for (final monster in registries.combat.monsters) {
+        if (monster.combatLevel >= selection.minLevel &&
+            monster.combatLevel <= selection.maxLevel &&
+            monster.canSlayer) {
+          eligibleMonsters.add(monster);
+        }
+      }
+    }
+
+    if (eligibleMonsters.isEmpty) return null;
+
+    final monster = eligibleMonsters[random.nextInt(eligibleMonsters.length)];
+    final baseKills = category.baseTaskLength;
+    final variance = (baseKills * 0.2).toInt().clamp(1, 100);
+    final killsRequired =
+        baseKills + random.nextInt(variance * 2 + 1) - variance;
+
+    return SlayerTask(
+      categoryId: category.id,
+      monsterId: monster.id.localId,
+      killsRequired: killsRequired,
+      killsCompleted: 0,
+    );
+  }
+
   /// Starts a slayer task for the given category.
   ///
   /// This rolls a random monster based on the category's selection criteria
-  /// and a random number of kills required.
+  /// and a random number of kills required. Deducts the roll cost.
   GlobalState startSlayerTask({
     required SlayerTaskCategory category,
     required Random random,
@@ -1716,32 +1751,10 @@ class GlobalState {
       }
     }
 
-    // Find eligible monsters based on selection criteria
-    final selection = category.monsterSelection;
-    final eligibleMonsters = <CombatAction>[];
-
-    if (selection is CombatLevelSelection) {
-      for (final monster in registries.combat.monsters) {
-        if (monster.combatLevel >= selection.minLevel &&
-            monster.combatLevel <= selection.maxLevel &&
-            monster.canSlayer) {
-          eligibleMonsters.add(monster);
-        }
-      }
-    }
-
-    if (eligibleMonsters.isEmpty) {
+    final task = rollSlayerTask(category: category, random: random);
+    if (task == null) {
       throw StateError('No eligible monsters for ${category.name} slayer task');
     }
-
-    // Pick a random monster
-    final monster = eligibleMonsters[random.nextInt(eligibleMonsters.length)];
-
-    // Calculate kills required (base length +/- some variance)
-    final baseKills = category.baseTaskLength;
-    final variance = (baseKills * 0.2).toInt().clamp(1, 100);
-    final killsRequired =
-        baseKills + random.nextInt(variance * 2 + 1) - variance;
 
     // Deduct currency cost
     final newCurrencies = Map<Currency, int>.from(currencies);
@@ -1750,15 +1763,7 @@ class GlobalState {
           (newCurrencies[cost.currency] ?? 0) - cost.amount;
     }
 
-    return copyWith(
-      slayerTask: SlayerTask(
-        categoryId: category.id,
-        monsterId: monster.id.localId,
-        killsRequired: killsRequired,
-        killsCompleted: 0,
-      ),
-      currencies: newCurrencies,
-    );
+    return copyWith(slayerTask: task, currencies: newCurrencies);
   }
 
   /// Checks whether the player meets all requirements for a slayer area.
