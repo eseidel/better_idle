@@ -114,7 +114,10 @@ class ProductionActionDisplay extends StatelessWidget {
 
     // Use recipe-specific inputs/outputs when action has alternatives
     final inputs = action.inputsForRecipe(selection);
-    final outputs = action.outputsForRecipe(selection);
+    final outputs = action.outputsForRecipe(
+      selection,
+      masteryLevel: actionState.masteryLevel,
+    );
 
     // Get product for the icon
     final productItem = state.registries.items.byId(productId);

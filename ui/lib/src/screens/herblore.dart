@@ -54,6 +54,9 @@ class _HerblorePageState extends State<HerblorePage> {
     final selectedAction =
         _selectedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : null);
+    final selectedMasteryLevel = selectedAction != null
+        ? context.state.actionState(selectedAction.id).masteryLevel
+        : 1;
 
     return GameScaffold(
       title: const Text('Herblore'),
@@ -71,7 +74,9 @@ class _HerblorePageState extends State<HerblorePage> {
                 children: [
                   ProductionActionDisplay(
                     action: selectedAction!,
-                    productId: selectedAction.productId,
+                    productId: selectedAction.productIdForMasteryLevel(
+                      selectedMasteryLevel,
+                    ),
                     skill: Skill.herblore,
                     headerText: 'Brew',
                     buttonText: 'Brew',
@@ -113,7 +118,9 @@ class _HerblorePageState extends State<HerblorePage> {
                     categoryId: (c) => c.id,
                     categoryName: (c) => c.name,
                     categoryMedia: (c) => c.media,
-                    actionProductId: (a) => a.productId,
+                    actionProductId: (a) => a.productIdForMasteryLevel(
+                      context.state.actionState(a.id).masteryLevel,
+                    ),
                   ),
                 ],
               ),

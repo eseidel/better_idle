@@ -205,7 +205,9 @@ List<AlternativeRecipe>? parseAlternativeCosts(
 }
 
 List<Droppable> defaultRewards(SkillAction action, RecipeSelection selection) {
-  final outputs = action.outputsForRecipe(selection);
+  // masteryLevel is only used by HerbloreAction (which overrides
+  // rewardsAtLevel with TieredDrop), so the value here doesn't matter.
+  final outputs = action.outputsForRecipe(selection, masteryLevel: 1);
   return [...outputs.entries.map((e) => Drop(e.key, count: e.value))];
 }
 
@@ -292,7 +294,12 @@ class SkillAction extends Action {
   /// Returns the outputs for the given recipe selection.
   /// For NoSelectedRecipe, returns the base outputs.
   /// For SelectedRecipe, applies quantityMultiplier from the selected recipe.
-  Map<MelvorId, int> outputsForRecipe(RecipeSelection selection) {
+  /// [masteryLevel] is used by herblore to select the correct potion tier;
+  /// other skills ignore it.
+  Map<MelvorId, int> outputsForRecipe(
+    RecipeSelection selection, {
+    required int masteryLevel,
+  }) {
     return switch (selection) {
       NoSelectedRecipe() => outputs,
       SelectedRecipe(:final index) => () {

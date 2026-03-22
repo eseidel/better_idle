@@ -93,6 +93,9 @@ extension RegistriesTestHelpers on Registries {
   SkillAction smithingAction(String name) =>
       _bySkillAndName(Skill.smithing, name) as SkillAction;
 
+  HerbloreAction herbloreAction(String name) =>
+      _bySkillAndName(Skill.herblore, name) as HerbloreAction;
+
   AgilityObstacle agilityObstacle(String name) =>
       _bySkillAndName(Skill.agility, name) as AgilityObstacle;
 }

@@ -1,6 +1,7 @@
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
+import 'package:logic/src/types/drop.dart';
 import 'package:meta/meta.dart';
 
 const _herbloreDuration = Duration(seconds: 2);
@@ -37,10 +38,10 @@ class HerbloreCategory {
 ///
 /// Herblore actions consume herbs and secondary ingredients to produce potions.
 /// Each recipe can produce multiple tiers of potions (I, II, III, IV) based on
-/// mastery level, but for simplicity we produce the first tier by default.
+/// mastery level. Use [productIdForMasteryLevel] to get the correct output.
 @immutable
 class HerbloreAction extends SkillAction {
-  const HerbloreAction({
+  HerbloreAction({
     required super.id,
     required super.name,
     required super.unlockLevel,
@@ -50,7 +51,11 @@ class HerbloreAction extends SkillAction {
     required this.productId,
     required this.potionIds,
     required this.categoryId,
-  }) : super(skill: Skill.herblore, duration: _herbloreDuration);
+  }) : super(
+         skill: Skill.herblore,
+         duration: _herbloreDuration,
+         rewardsAtLevel: (action, selection) => [TieredDrop(potionIds)],
+       );
 
   factory HerbloreAction.fromJson(
     Map<String, dynamic> json, {
@@ -113,6 +118,34 @@ class HerbloreAction extends SkillAction {
   /// The category ID (e.g., "melvorF:CombatPotions", "melvorF:SkillPotions").
   @override
   final MelvorId? categoryId;
+
+  /// Returns the potion tier index (0-3) for the given mastery level.
+  ///
+  /// Melvor Idle mastery thresholds:
+  /// - Tier I (0): mastery level 1+
+  /// - Tier II (1): mastery level 20+
+  /// - Tier III (2): mastery level 50+
+  /// - Tier IV (3): mastery level 90+
+  static int tierIndexForMasteryLevel(int masteryLevel) {
+    if (masteryLevel >= 90) return 3;
+    if (masteryLevel >= 50) return 2;
+    if (masteryLevel >= 20) return 1;
+    return 0;
+  }
+
+  /// Returns the potion ID to produce at the given mastery level.
+  MelvorId productIdForMasteryLevel(int masteryLevel) {
+    final tierIndex = tierIndexForMasteryLevel(masteryLevel);
+    return potionIds[tierIndex.clamp(0, potionIds.length - 1)];
+  }
+
+  @override
+  Map<MelvorId, int> outputsForRecipe(
+    RecipeSelection selection, {
+    required int masteryLevel,
+  }) {
+    return {productIdForMasteryLevel(masteryLevel): 1};
+  }
 }
 
 /// Unified registry for all herblore-related data.
