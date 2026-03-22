@@ -495,6 +495,73 @@ void main() {
       expect(state.currency(Currency.slayerCoins), initialSc);
     });
 
+    test('on-task kills in slayer area grant 15% XP and 10% SC', () {
+      // Find a slayer area with only level requirements we can meet.
+      final area = testRegistries.slayer.areas.all.firstWhere(
+        (a) =>
+            a.entryRequirements.isNotEmpty &&
+            a.entryRequirements.every((r) => r is SlayerLevelRequirement),
+      );
+      final monsterId = area.monsterIds.first;
+      final monster = testRegistries.allActions
+          .whereType<CombatAction>()
+          .firstWhere((a) => a.id.localId == monsterId);
+
+      final category = easyCategory();
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: highCombatSkills,
+        currencies: {
+          for (final cost in category.rollCost.costs)
+            cost.currency: cost.amount * 10,
+        },
+      );
+
+      // Manually set a slayer task targeting this area's monster.
+      state = state.copyWith(
+        slayerTask: SlayerTask(
+          categoryId: category.id,
+          monsterId: monster.id.localId,
+          killsRequired: 3,
+          killsCompleted: 0,
+        ),
+      );
+
+      // Fight in the slayer area (on-task + in area).
+      state = state.startSlayerAreaCombat(
+        area: area,
+        monster: monster,
+        random: Random(42),
+      );
+
+      final initialXp = state.skillState(Skill.slayer).xp;
+      final initialSc = state.currency(Currency.slayerCoins);
+      final random = Random(42);
+
+      // Process until task completes.
+      var totalTicks = 0;
+      while (state.slayerTask != null && totalTicks < 50000) {
+        final builder = StateUpdateBuilder(state);
+        consumeTicks(builder, 1000, random: random);
+        state = builder.build();
+        totalTicks += 1000;
+      }
+
+      // XP should be at least 15% of HP * 3 kills.
+      final expectedXp = monster.maxHp * 15 ~/ 100 * 3;
+      expect(
+        state.skillState(Skill.slayer).xp - initialXp,
+        greaterThanOrEqualTo(expectedXp),
+      );
+
+      // SC should be at least 10% of HP * 3 kills.
+      final expectedSc = monster.maxHp * 10 ~/ 100 * 3;
+      expect(
+        state.currency(Currency.slayerCoins) - initialSc,
+        greaterThanOrEqualTo(expectedSc),
+      );
+    });
+
     test('off-task kills outside slayer area grant 0 XP and 0 SC', () {
       // No slayer task, fighting a regular monster (not in slayer area).
       var state = GlobalState.test(
