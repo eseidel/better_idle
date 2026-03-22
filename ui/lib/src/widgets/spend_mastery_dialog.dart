@@ -38,7 +38,6 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
         final claimableTokens = state.claimableMasteryTokenCount(widget.skill);
 
         return AlertDialog(
-          constraints: const BoxConstraints(maxWidth: 600),
           title: const Text('Spend Mastery XP'),
           content: SizedBox(
             width: double.maxFinite,
