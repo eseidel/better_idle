@@ -35,7 +35,43 @@ class _BankPageState extends State<BankPage> {
   bool _isSelectionMode = false;
   final Set<Item> _selectedItems = {};
 
+  // Search state
+  bool _isSearchMode = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
   bool get _isWide => MediaQuery.sizeOf(context).width >= sidebarBreakpoint;
+
+  void _enterSearchMode() {
+    setState(() {
+      _isSearchMode = true;
+    });
+    _searchFocusNode.requestFocus();
+  }
+
+  void _exitSearchMode() {
+    setState(() {
+      _isSearchMode = false;
+      _searchQuery = '';
+      _searchController.clear();
+    });
+  }
+
+  List<ItemStack> _filterStacks(List<ItemStack> stacks) {
+    if (_searchQuery.isEmpty) return stacks;
+    final query = _searchQuery.toLowerCase();
+    return stacks
+        .where((stack) => stack.item.name.toLowerCase().contains(query))
+        .toList();
+  }
 
   void _onItemTap(ItemStack stack) {
     if (_isSelectionMode) {
@@ -132,53 +168,94 @@ class _BankPageState extends State<BankPage> {
     final inventoryCapacity = state.inventoryCapacity;
     final isWide = _isWide;
 
+    final filteredStacks = _filterStacks(context.state.inventory.items);
+
     final gridColumn = Column(
       children: [
         if (!_isSelectionMode)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
+            child: Column(
               children: [
-                Text(
-                  'Space: $inventoryUsed/$inventoryCapacity',
-                  style: inventoryUsed >= inventoryCapacity
-                      ? const TextStyle(color: Style.errorColor)
-                      : null,
+                Row(
+                  children: [
+                    Text(
+                      'Space: $inventoryUsed/$inventoryCapacity',
+                      style: inventoryUsed >= inventoryCapacity
+                          ? const TextStyle(color: Style.errorColor)
+                          : null,
+                    ),
+                    const SizedBox(width: 16),
+                    CurrencyDisplay(currency: Currency.gp, amount: sellValue),
+                    const Spacer(),
+                    if (state.canUpgradeAllPotions)
+                      IconButton(
+                        icon: const Icon(Icons.science),
+                        tooltip: 'Upgrade all potions',
+                        onPressed: () {
+                          context.dispatch(
+                            UpgradeAllPotionsAction(
+                              onResult: (result) {
+                                final message = result.hasUpgrades
+                                    ? 'Upgraded ${result.totalUpgradesMade}'
+                                          ' potions'
+                                    : 'No potions to upgrade';
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(message)),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    IconButton(
+                      icon: Icon(
+                        _isSearchMode ? Icons.search_off : Icons.search,
+                      ),
+                      tooltip: _isSearchMode ? 'Close search' : 'Search',
+                      onPressed: _isSearchMode
+                          ? _exitSearchMode
+                          : _enterSearchMode,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.sort),
+                      tooltip: 'Sort inventory',
+                      onPressed: () => context.dispatch(SortInventoryAction()),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                CurrencyDisplay(currency: Currency.gp, amount: sellValue),
-                const Spacer(),
-                if (state.canUpgradeAllPotions)
-                  IconButton(
-                    icon: const Icon(Icons.science),
-                    tooltip: 'Upgrade all potions',
-                    onPressed: () {
-                      context.dispatch(
-                        UpgradeAllPotionsAction(
-                          onResult: (result) {
-                            final message = result.hasUpgrades
-                                ? 'Upgraded ${result.totalUpgradesMade}'
-                                      ' potions'
-                                : 'No potions to upgrade';
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(SnackBar(content: Text(message)));
-                          },
-                        ),
-                      );
-                    },
+                if (_isSearchMode)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      decoration: InputDecoration(
+                        hintText: 'Search items...',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                  _searchFocusNode.requestFocus();
+                                },
+                              )
+                            : null,
+                        isDense: true,
+                        border: const OutlineInputBorder(),
+                      ),
+                      onChanged: (value) =>
+                          setState(() => _searchQuery = value),
+                    ),
                   ),
-                IconButton(
-                  icon: const Icon(Icons.sort),
-                  tooltip: 'Sort inventory',
-                  onPressed: () => context.dispatch(SortInventoryAction()),
-                ),
               ],
             ),
           ),
         Expanded(
           child: ItemGrid(
-            stacks: context.state.inventory.items,
+            stacks: filteredStacks,
             onItemTap: _onItemTap,
             onItemDoubleTap: _onItemDoubleTap,
             onItemLongPress: _onItemLongPress,
