@@ -77,9 +77,6 @@ class _HerblorePageState extends State<HerblorePage> {
                     productId: selectedAction.productIdForMasteryLevel(
                       selectedMasteryLevel,
                     ),
-                    outputs: selectedAction.outputsForMasteryLevel(
-                      selectedMasteryLevel,
-                    ),
                     skill: Skill.herblore,
                     headerText: 'Brew',
                     buttonText: 'Brew',

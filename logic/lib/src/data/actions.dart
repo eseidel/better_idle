@@ -292,7 +292,12 @@ class SkillAction extends Action {
   /// Returns the outputs for the given recipe selection.
   /// For NoSelectedRecipe, returns the base outputs.
   /// For SelectedRecipe, applies quantityMultiplier from the selected recipe.
-  Map<MelvorId, int> outputsForRecipe(RecipeSelection selection) {
+  /// [masteryLevel] is used by herblore to select the correct potion tier;
+  /// other skills ignore it.
+  Map<MelvorId, int> outputsForRecipe(
+    RecipeSelection selection, {
+    int? masteryLevel,
+  }) {
     return switch (selection) {
       NoSelectedRecipe() => outputs,
       SelectedRecipe(:final index) => () {

@@ -38,7 +38,6 @@ class ProductionActionDisplay extends StatelessWidget {
     required this.showRecycleBadge,
     this.skillLevel,
     this.effectText,
-    this.outputs,
     this.showInputShopBadge = false,
     this.onInputItemTap,
     super.key,
@@ -55,10 +54,6 @@ class ProductionActionDisplay extends StatelessWidget {
 
   /// Optional effect text shown below the action name (e.g., for summoning).
   final String? effectText;
-
-  /// Optional outputs override. When provided, used instead of deriving
-  /// outputs from the action (e.g., for herblore mastery-tiered potions).
-  final Map<MelvorId, int>? outputs;
 
   /// Whether to show shop badge icons on input items that are purchasable.
   final bool showInputShopBadge;
@@ -119,7 +114,10 @@ class ProductionActionDisplay extends StatelessWidget {
 
     // Use recipe-specific inputs/outputs when action has alternatives
     final inputs = action.inputsForRecipe(selection);
-    final effectiveOutputs = outputs ?? action.outputsForRecipe(selection);
+    final outputs = action.outputsForRecipe(
+      selection,
+      masteryLevel: actionState.masteryLevel,
+    );
 
     // Get product for the icon
     final productItem = state.registries.items.byId(productId);
@@ -164,7 +162,7 @@ class ProductionActionDisplay extends StatelessWidget {
           const SizedBox(height: 12),
 
           // Row 5: Produces | Grants
-          _buildProducesGrantsRow(context, effectiveOutputs),
+          _buildProducesGrantsRow(context, outputs),
           const SizedBox(height: 16),
 
           // Row 6: Action progress bar (shown when active)

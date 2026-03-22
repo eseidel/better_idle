@@ -139,9 +139,15 @@ class HerbloreAction extends SkillAction {
     return potionIds[tierIndex.clamp(0, potionIds.length - 1)];
   }
 
-  /// Returns the outputs map for the given mastery level.
-  Map<MelvorId, int> outputsForMasteryLevel(int masteryLevel) {
-    return {productIdForMasteryLevel(masteryLevel): 1};
+  @override
+  Map<MelvorId, int> outputsForRecipe(
+    RecipeSelection selection, {
+    int? masteryLevel,
+  }) {
+    if (masteryLevel != null) {
+      return {productIdForMasteryLevel(masteryLevel): 1};
+    }
+    return super.outputsForRecipe(selection);
   }
 }
 
