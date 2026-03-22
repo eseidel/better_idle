@@ -37,109 +37,116 @@ class CombatPage extends StatelessWidget {
       title: const Text('Combat'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Wrap(
+          spacing: 16,
+          runSpacing: 16,
           children: [
             // Select Combat Area, Dungeon, and Slayer Task buttons
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => const CombatAreaSelectionDialog(),
+            SizedBox(
+              width: double.infinity,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => const CombatAreaSelectionDialog(),
+                      ),
+                      icon: const CachedImage(
+                        assetPath: 'assets/media/skills/combat/combat.png',
+                        size: 20,
+                      ),
+                      label: const Text('Combat Area'),
                     ),
-                    icon: const CachedImage(
-                      assetPath: 'assets/media/skills/combat/combat.png',
-                      size: 20,
-                    ),
-                    label: const Text('Combat Area'),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => const DungeonSelectionDialog(),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => const DungeonSelectionDialog(),
+                      ),
+                      icon: const CachedImage(
+                        assetPath: 'assets/media/skills/combat/dungeon.png',
+                        size: 20,
+                      ),
+                      label: const Text('Dungeon'),
                     ),
-                    icon: const CachedImage(
-                      assetPath: 'assets/media/skills/combat/dungeon.png',
-                      size: 20,
-                    ),
-                    label: const Text('Dungeon'),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => const StrongholdSelectionDialog(),
+            SizedBox(
+              width: double.infinity,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => const StrongholdSelectionDialog(),
+                      ),
+                      icon: const CachedImage(
+                        assetPath: 'assets/media/skills/combat/strongholds.png',
+                        size: 20,
+                      ),
+                      label: const Text('Stronghold'),
                     ),
-                    icon: const CachedImage(
-                      assetPath: 'assets/media/skills/combat/strongholds.png',
-                      size: 20,
-                    ),
-                    label: const Text('Stronghold'),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => const SlayerAreaSelectionDialog(),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => const SlayerAreaSelectionDialog(),
+                      ),
+                      icon: const CachedImage(
+                        assetPath: 'assets/media/skills/slayer/slayer.png',
+                        size: 20,
+                      ),
+                      label: const Text('Slayer Area'),
                     ),
-                    icon: const CachedImage(
-                      assetPath: 'assets/media/skills/slayer/slayer.png',
-                      size: 20,
-                    ),
-                    label: const Text('Slayer Area'),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            const _SlayerTaskCard(),
-            const SizedBox(height: 16),
+            const SizedBox(width: _cardMaxWidth, child: _SlayerTaskCard()),
 
             // Player stats card with food
-            _PlayerStatsCard(
-              playerHp: state.playerHp,
-              maxPlayerHp: state.maxPlayerHp,
-              equipment: state.equipment,
-              animateAttack: state.isPlayerActive,
-              attackTicksRemaining: combatState?.playerAttackTicksRemaining,
-              totalAttackTicks: activeMonster != null
-                  ? secondsToTicks(
-                      computePlayerStats(
-                        state,
-                        // UI display only, no live combat state.
-                        conditionContext: ConditionContext.empty,
-                      ).attackSpeed,
+            SizedBox(
+              width: _cardMaxWidth,
+              child: _PlayerStatsCard(
+                playerHp: state.playerHp,
+                maxPlayerHp: state.maxPlayerHp,
+                equipment: state.equipment,
+                animateAttack: state.isPlayerActive,
+                attackTicksRemaining: combatState?.playerAttackTicksRemaining,
+                totalAttackTicks: activeMonster != null
+                    ? secondsToTicks(
+                        computePlayerStats(
+                          state,
+                          // UI display only, no live combat state.
+                          conditionContext: ConditionContext.empty,
+                        ).attackSpeed,
+                      )
+                    : null,
+                showAutoEat: state.hasAutoEat,
+                autoEatThresholdPercent: state
+                    .createCombatModifierProvider(
+                      conditionContext: ConditionContext.empty,
                     )
-                  : null,
-              showAutoEat: state.hasAutoEat,
-              autoEatThresholdPercent: state
-                  .createCombatModifierProvider(
-                    conditionContext: ConditionContext.empty,
-                  )
-                  .autoEatThreshold,
+                    .autoEatThreshold,
+              ),
             ),
-            const SizedBox(height: 16),
 
             // Attack style selector
-            const AttackStyleSelector(),
-            const SizedBox(height: 16),
+            const SizedBox(width: _cardMaxWidth, child: AttackStyleSelector()),
 
             // Player combat stats card
-            _PlayerCombatStatsCard(activeMonster: activeMonster),
-            const SizedBox(height: 16),
+            SizedBox(
+              width: _cardMaxWidth,
+              child: _PlayerCombatStatsCard(activeMonster: activeMonster),
+            ),
 
             // Active combat section
             if (activeMonster != null) ...[
@@ -147,53 +154,72 @@ class CombatPage extends StatelessWidget {
               if (state.activeActivity case CombatActivity(
                 :final context,
               ) when context is SequenceCombatContext)
-                _SequenceProgressCard(
-                  name: switch (context.sequenceType) {
-                    SequenceType.dungeon =>
-                      state.registries.combat.dungeons
-                          .byId(context.sequenceId)
-                          .name,
-                    SequenceType.stronghold =>
-                      state.registries.combat.strongholds
-                          .byId(context.sequenceId)
-                          .name,
-                  },
-                  assetPath: switch (context.sequenceType) {
-                    SequenceType.dungeon =>
-                      'assets/media/skills/combat/dungeon.png',
-                    SequenceType.stronghold =>
-                      'assets/media/skills/combat/strongholds.png',
-                  },
-                  currentMonsterIndex: context.currentMonsterIndex,
-                  totalMonsters: context.monsterIds.length,
+                SizedBox(
+                  width: _cardMaxWidth,
+                  child: _SequenceProgressCard(
+                    name: switch (context.sequenceType) {
+                      SequenceType.dungeon =>
+                        state.registries.combat.dungeons
+                            .byId(context.sequenceId)
+                            .name,
+                      SequenceType.stronghold =>
+                        state.registries.combat.strongholds
+                            .byId(context.sequenceId)
+                            .name,
+                    },
+                    assetPath: switch (context.sequenceType) {
+                      SequenceType.dungeon =>
+                        'assets/media/skills/combat/dungeon.png',
+                      SequenceType.stronghold =>
+                        'assets/media/skills/combat/strongholds.png',
+                    },
+                    currentMonsterIndex: context.currentMonsterIndex,
+                    totalMonsters: context.monsterIds.length,
+                  ),
                 ),
-              _MonsterCard(
-                action: activeMonster,
-                combatState: combatState,
-                isInCombat: true,
+              SizedBox(
+                width: _cardMaxWidth,
+                child: _MonsterCard(
+                  action: activeMonster,
+                  combatState: combatState,
+                  isInCombat: true,
+                ),
               ),
-              const SizedBox(height: 8),
               if (state.isStunned)
-                const ElevatedButton(onPressed: null, child: Text('Stunned'))
+                const SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: null,
+                    child: Text('Stunned'),
+                  ),
+                )
               else
-                ElevatedButton(
-                  onPressed: () => context.dispatch(StopCombatAction()),
-                  child: const Text('Run Away'),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => context.dispatch(StopCombatAction()),
+                    child: const Text('Run Away'),
+                  ),
                 ),
-              const SizedBox(height: 16),
             ],
 
             // Loot container (shown when there's loot)
-            if (state.hasLoot) ...[
-              _LootContainerCard(loot: state.loot),
-              const SizedBox(height: 24),
-            ],
+            if (state.hasLoot)
+              SizedBox(
+                width: _cardMaxWidth,
+                child: _LootContainerCard(loot: state.loot),
+              ),
           ],
         ),
       ),
     );
   }
 }
+
+/// Maximum width for combat cards so they flow into multiple columns on wide
+/// screens. On narrower screens, the Wrap constrains children to the available
+/// width, so cards will shrink below this on mobile.
+const double _cardMaxWidth = 500;
 
 class _LootContainerCard extends StatelessWidget {
   const _LootContainerCard({required this.loot});
