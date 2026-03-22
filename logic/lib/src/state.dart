@@ -4067,6 +4067,18 @@ class GlobalState {
     );
   }
 
+  /// Returns the remaining charges on the current potion bottle for a skill.
+  /// This counts down from [Item.potionCharges] (e.g. 10 → 0), not total uses.
+  int currentPotionChargesRemaining(MelvorId skillId) {
+    final potionId = selectedPotions[skillId];
+    if (potionId == null) return 0;
+
+    final potion = registries.items.byId(potionId);
+    final chargesPerPotion = potion.potionCharges ?? 1;
+    final chargesUsed = potionChargesUsedForSkill(skillId);
+    return chargesPerPotion - chargesUsed;
+  }
+
   /// Returns the total remaining uses for a potion (charges left on current
   /// potion plus inventory count times charges per potion).
   int potionUsesRemaining(MelvorId skillId) {
