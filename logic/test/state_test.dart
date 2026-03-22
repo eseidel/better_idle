@@ -2404,6 +2404,23 @@ void main() {
       expect(loaded.selectedSkillAction(Skill.fishing), isNull);
     });
 
+    test('clearAction preserves all state fields', () {
+      const actionId = MelvorId('melvorD:Normal_Tree');
+      final state = GlobalState.test(testRegistries);
+      final withSelection = state.setSelectedSkillAction(
+        Skill.woodcutting,
+        actionId,
+      );
+
+      final before = withSelection.toJson()
+        ..remove('activeActivity')
+        ..remove('updatedAt');
+      final after = withSelection.clearAction().toJson()
+        ..remove('activeActivity')
+        ..remove('updatedAt');
+      expect(after, before);
+    });
+
     test('empty selectedSkillActions round-trips through JSON', () {
       final state = GlobalState.test(testRegistries);
 

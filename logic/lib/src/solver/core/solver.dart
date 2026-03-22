@@ -1629,7 +1629,7 @@ GlobalState executeUpgradeRecovery(
     bankSlotsPurchased: state.shop.bankSlotsPurchased,
     hasMerchantsPermit: state.hasMerchantsPermit,
   );
-  // TODO: Support non-GP purchases (e.g. slayer coins, item costs).
+  // TODO(eseidel): Support non-GP purchases (e.g. slayer coins, item costs).
   assert(
     purchaseCosts != null &&
         purchaseCosts.length == 1 &&

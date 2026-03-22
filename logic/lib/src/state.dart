@@ -1956,58 +1956,16 @@ class GlobalState {
     // Prepare state for activity switch (handles cooking cleanup, etc.)
     final prepared = _prepareForActivitySwitch(stayingInCooking: false);
 
-    return prepared._copyWithNullable(clearActiveActivity: true);
+    return prepared.copyWith(clearActiveActivity: true);
   }
 
   GlobalState clearTimeAway() {
-    return _copyWithNullable(clearTimeAway: true);
-  }
-
-  /// Like [copyWith] but allows explicitly setting fields to null.
-  /// Fields not specified retain their current values.
-  GlobalState _copyWithNullable({
-    AgilityState? agility,
-    CookingState? cooking,
-    bool clearActiveActivity = false,
-    bool clearTimeAway = false,
-    bool clearSlayerTask = false,
-  }) {
-    return GlobalState(
-      registries: registries,
-      inventory: inventory,
-      activeActivity: clearActiveActivity ? null : activeActivity,
-      skillStates: skillStates,
-      actionStates: actionStates,
-      miningState: miningState,
-      plotStates: plotStates,
-      unlockedPlots: unlockedPlots,
-      unlockedPets: unlockedPets,
-      dungeonCompletions: dungeonCompletions,
-      itemCharges: itemCharges,
-      selectedPotions: selectedPotions,
-      potionChargesUsed: potionChargesUsed,
-      updatedAt: DateTime.timestamp(),
-      currencies: currencies,
-      timeAway: clearTimeAway ? null : timeAway,
-      shop: shop,
-      health: health,
-      equipment: equipment,
-      stunned: stunned,
-      attackStyle: attackStyle,
-      agility: agility ?? this.agility,
-      cooking: cooking ?? this.cooking,
-      summoning: summoning,
-      township: township,
-      bonfire: bonfire,
-      loot: loot,
-      slayerTaskCompletions: slayerTaskCompletions,
-      slayerTask: clearSlayerTask ? null : slayerTask,
-    );
+    return copyWith(clearTimeAway: true);
   }
 
   /// Clears the active slayer task.
   GlobalState clearSlayerTask() {
-    return _copyWithNullable(clearSlayerTask: true);
+    return copyWith(clearSlayerTask: true);
   }
 
   SkillState skillState(Skill skill) =>
@@ -3702,7 +3660,7 @@ class GlobalState {
     }
     // Progress is tracked in AgilityActivity, which is cleared here.
     // No need to update AgilityState.
-    return _copyWithNullable(clearActiveActivity: true);
+    return copyWith(clearActiveActivity: true);
   }
 
   /// Builds an obstacle in the specified agility course slot.
@@ -3767,9 +3725,14 @@ class GlobalState {
   }
 
   /// Creates a copy of this state with the given fields replaced.
+  ///
+  /// The `clearX` flags explicitly set nullable fields to null (which
+  /// normal optional parameters can't express). Passing both a value and
+  /// its corresponding clear flag is a programming error.
   GlobalState copyWith({
     Inventory? inventory,
     ActiveActivity? activeActivity,
+    bool clearActiveActivity = false,
     Map<Skill, SkillState>? skillStates,
     Map<ActionId, ActionState>? actionStates,
     MiningPersistentState? miningState,
@@ -3780,11 +3743,13 @@ class GlobalState {
     Map<MelvorId, int>? strongholdCompletions,
     Map<MelvorId, int>? slayerTaskCompletions,
     SlayerTask? slayerTask,
+    bool clearSlayerTask = false,
     Map<MelvorId, int>? itemCharges,
     Map<MelvorId, MelvorId>? selectedPotions,
     Map<MelvorId, int>? potionChargesUsed,
     Map<Currency, int>? currencies,
     TimeAway? timeAway,
+    bool clearTimeAway = false,
     ShopState? shop,
     HealthState? health,
     Equipment? equipment,
@@ -3801,10 +3766,21 @@ class GlobalState {
     Set<MelvorId>? readItems,
     DateTime? updatedAt,
   }) {
+    if (clearActiveActivity && activeActivity != null) {
+      throw StateError('Cannot both set and clear activeActivity');
+    }
+    if (clearSlayerTask && slayerTask != null) {
+      throw StateError('Cannot both set and clear slayerTask');
+    }
+    if (clearTimeAway && timeAway != null) {
+      throw StateError('Cannot both set and clear timeAway');
+    }
     return GlobalState(
       registries: registries,
       inventory: inventory ?? this.inventory,
-      activeActivity: activeActivity ?? this.activeActivity,
+      activeActivity: clearActiveActivity
+          ? null
+          : (activeActivity ?? this.activeActivity),
       skillStates: skillStates ?? this.skillStates,
       actionStates: actionStates ?? this.actionStates,
       miningState: miningState ?? this.miningState,
@@ -3816,13 +3792,13 @@ class GlobalState {
           strongholdCompletions ?? this.strongholdCompletions,
       slayerTaskCompletions:
           slayerTaskCompletions ?? this.slayerTaskCompletions,
-      slayerTask: slayerTask ?? this.slayerTask,
+      slayerTask: clearSlayerTask ? null : (slayerTask ?? this.slayerTask),
       itemCharges: itemCharges ?? this.itemCharges,
       selectedPotions: selectedPotions ?? this.selectedPotions,
       potionChargesUsed: potionChargesUsed ?? this.potionChargesUsed,
       updatedAt: updatedAt ?? DateTime.timestamp(),
       currencies: currencies ?? this.currencies,
-      timeAway: timeAway ?? this.timeAway,
+      timeAway: clearTimeAway ? null : (timeAway ?? this.timeAway),
       shop: shop ?? this.shop,
       health: health ?? this.health,
       equipment: equipment ?? this.equipment,

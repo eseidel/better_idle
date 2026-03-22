@@ -180,7 +180,8 @@ class WatchSet {
             bankSlotsPurchased: state.shop.bankSlotsPurchased,
             hasMerchantsPermit: state.hasMerchantsPermit,
           );
-          // TODO: Support non-GP purchases (e.g. slayer coins, item costs).
+          // TODO(eseidel): Support non-GP purchases
+          // (e.g. slayer coins, item costs).
           if (costs.length != 1 || costs.first.$1 != Currency.gp) {
             continue;
           }
