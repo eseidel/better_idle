@@ -123,15 +123,17 @@ class _TownView extends StatelessWidget {
           onFilterChanged: onFilterChanged,
         ),
         const Divider(),
-        ...viewModel.township.registry.biomes.map(
-          (TownshipBiome biome) => _BiomeSection(
-            viewModel: viewModel,
-            biome: biome,
-            isCollapsed: collapsedBiomes.contains(biome.id),
-            onToggleCollapse: () => onToggleBiome(biome.id),
-            buildingFilter: buildingFilter,
+        if (buildingFilter == _BuildingFilter.affordable)
+          _AffordableBuildingsGrid(viewModel: viewModel)
+        else
+          ...viewModel.township.registry.biomes.map(
+            (TownshipBiome biome) => _BiomeSection(
+              viewModel: viewModel,
+              biome: biome,
+              isCollapsed: collapsedBiomes.contains(biome.id),
+              onToggleCollapse: () => onToggleBiome(biome.id),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -1302,39 +1304,66 @@ class _ResourceChip extends StatelessWidget {
   }
 }
 
+class _AffordableBuildingsGrid extends StatelessWidget {
+  const _AffordableBuildingsGrid({required this.viewModel});
+
+  final TownshipViewModel viewModel;
+
+  bool _isAffordable(MelvorId biomeId, TownshipBuilding building) {
+    final township = viewModel.township;
+    final needsRepair = township.buildingNeedsRepair(biomeId, building.id);
+    return needsRepair
+        ? viewModel.canAffordRepair(biomeId, building.id)
+        : viewModel.canAffordBuildingCosts(biomeId, building.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cards = <Widget>[];
+    for (final biome in viewModel.township.registry.biomes) {
+      if (!viewModel.township.isBiomeUnlocked(biome)) continue;
+      for (final building in viewModel.buildingsForBiome(biome.id)) {
+        if (_isAffordable(biome.id, building)) {
+          cards.add(
+            _BuildingCard(
+              viewModel: viewModel,
+              biomeId: biome.id,
+              building: building,
+            ),
+          );
+        }
+      }
+    }
+    if (cards.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(child: Text('No affordable buildings')),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Wrap(spacing: 8, runSpacing: 8, children: cards),
+    );
+  }
+}
+
 class _BiomeSection extends StatelessWidget {
   const _BiomeSection({
     required this.viewModel,
     required this.biome,
     required this.isCollapsed,
     required this.onToggleCollapse,
-    required this.buildingFilter,
   });
 
   final TownshipViewModel viewModel;
   final TownshipBiome biome;
   final bool isCollapsed;
   final VoidCallback onToggleCollapse;
-  final _BuildingFilter buildingFilter;
-
-  bool _isBuildingAffordable(TownshipBuilding building) {
-    final township = viewModel.township;
-    final needsRepair = township.buildingNeedsRepair(biome.id, building.id);
-    // Check cost affordability only (ignoring level requirements).
-    return needsRepair
-        ? viewModel.canAffordRepair(biome.id, building.id)
-        : viewModel.canAffordBuildingCosts(biome.id, building.id);
-  }
 
   @override
   Widget build(BuildContext context) {
     final isUnlocked = viewModel.township.isBiomeUnlocked(biome);
-    var buildings = viewModel.buildingsForBiome(biome.id);
-
-    // Apply affordability filter.
-    if (buildingFilter == _BuildingFilter.affordable) {
-      buildings = buildings.where(_isBuildingAffordable).toList();
-    }
+    final buildings = viewModel.buildingsForBiome(biome.id);
 
     return Column(
       children: [
