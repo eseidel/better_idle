@@ -3537,16 +3537,13 @@ class GlobalState {
       // Check mastery allows the output tier.
       final outputItem = registries.items.byId(upgrade.upgradedItemId);
       final outputTier = outputItem.potionTier ?? 0;
-      final recipeId = registries.herblore.recipeIdForPotionItem(
-        outputItem.id,
-      );
+      final recipeId = registries.herblore.recipeIdForPotionItem(outputItem.id);
       if (recipeId == null) return true; // Not a herblore potion, allow.
       final action = registries.herblore.byId(recipeId);
       if (action == null) return true;
       final masteryLevel = actionState(action.id).masteryLevel;
-      return outputTier <= HerbloreAction.tierIndexForMasteryLevel(
-        masteryLevel,
-      );
+      return outputTier <=
+          HerbloreAction.tierIndexForMasteryLevel(masteryLevel);
     }).toList()..sort((a, b) {
       final tierA =
           registries.items.byId(a.itemCosts.first.itemId).potionTier ?? 0;
