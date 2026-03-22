@@ -185,7 +185,10 @@ class SkillActionDisplay extends StatelessWidget {
 
     // Get recipe-specific inputs and outputs
     final inputs = action.inputsForRecipe(selection);
-    final outputs = action.outputsForRecipe(selection);
+    final outputs = action.outputsForRecipe(
+      selection,
+      masteryLevel: actionState.masteryLevel,
+    );
 
     return Container(
       padding: const EdgeInsets.all(16),

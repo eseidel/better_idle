@@ -186,7 +186,10 @@ void main() {
         ],
       );
 
-      final outputs = action.outputsForRecipe(const NoSelectedRecipe());
+      final outputs = action.outputsForRecipe(
+        masteryLevel: 1,
+        const NoSelectedRecipe(),
+      );
 
       expect(outputs, {ironBarId: 1});
     });
@@ -221,15 +224,24 @@ void main() {
       );
 
       // Select recipe at index 0 (multiplier = 1)
-      final outputs0 = action.outputsForRecipe(const SelectedRecipe(index: 0));
+      final outputs0 = action.outputsForRecipe(
+        masteryLevel: 1,
+        const SelectedRecipe(index: 0),
+      );
       expect(outputs0, {ironBarId: 1});
 
       // Select recipe at index 1 (multiplier = 2)
-      final outputs1 = action.outputsForRecipe(const SelectedRecipe(index: 1));
+      final outputs1 = action.outputsForRecipe(
+        masteryLevel: 1,
+        const SelectedRecipe(index: 1),
+      );
       expect(outputs1, {ironBarId: 2});
 
       // Select recipe at index 2 (multiplier = 3)
-      final outputs2 = action.outputsForRecipe(const SelectedRecipe(index: 2));
+      final outputs2 = action.outputsForRecipe(
+        masteryLevel: 1,
+        const SelectedRecipe(index: 2),
+      );
       expect(outputs2, {ironBarId: 3});
     });
 
@@ -253,12 +265,14 @@ void main() {
 
       // Index -1 should clamp to 0 (multiplier = 1)
       final outputsNegative = action.outputsForRecipe(
+        masteryLevel: 1,
         const SelectedRecipe(index: -1),
       );
       expect(outputsNegative, {ironBarId: 1});
 
       // Index 10 should clamp to last index (1, multiplier = 5)
       final outputsOverflow = action.outputsForRecipe(
+        masteryLevel: 1,
         const SelectedRecipe(index: 10),
       );
       expect(outputsOverflow, {ironBarId: 5});
@@ -284,7 +298,10 @@ void main() {
       );
 
       // Select recipe with multiplier = 4
-      final outputs = action.outputsForRecipe(const SelectedRecipe(index: 1));
+      final outputs = action.outputsForRecipe(
+        masteryLevel: 1,
+        const SelectedRecipe(index: 1),
+      );
       expect(outputs, {ironBarId: 8, steelBarId: 12});
     });
   });

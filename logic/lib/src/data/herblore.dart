@@ -142,12 +142,9 @@ class HerbloreAction extends SkillAction {
   @override
   Map<MelvorId, int> outputsForRecipe(
     RecipeSelection selection, {
-    int? masteryLevel,
+    required int masteryLevel,
   }) {
-    if (masteryLevel != null) {
-      return {productIdForMasteryLevel(masteryLevel): 1};
-    }
-    return super.outputsForRecipe(selection);
+    return {productIdForMasteryLevel(masteryLevel): 1};
   }
 }
 
