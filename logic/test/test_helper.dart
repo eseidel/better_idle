@@ -98,6 +98,15 @@ extension RegistriesTestHelpers on Registries {
 
   AgilityObstacle agilityObstacle(String name) =>
       _bySkillAndName(Skill.agility, name) as AgilityObstacle;
+
+  RunecraftingAction runecraftingAction(String name) =>
+      _bySkillAndName(Skill.runecrafting, name) as RunecraftingAction;
+
+  SkillAction craftingAction(String name) =>
+      _bySkillAndName(Skill.crafting, name) as SkillAction;
+
+  SkillAction fletchingAction(String name) =>
+      _bySkillAndName(Skill.fletching, name) as SkillAction;
 }
 
 /// Extension providing a short helper for the common test pattern of
