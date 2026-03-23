@@ -129,4 +129,9 @@ class Style {
 
   // Currency/stat value text color (used in nav drawer for GP, SC, HP, Prayer)
   static const Color currencyValueColor = Colors.green;
+
+  // Image sizes (matching Melvor Idle)
+  static const double featuredImageSize = 74;
+  static const double bankImageSizeMobile = 28;
+  static const double bankImageSizeDesktop = 32;
 }

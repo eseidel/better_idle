@@ -195,7 +195,12 @@ class _SelectedActionDisplay extends StatelessWidget {
           ],
           // Header: NPC Image + Pickpocket + NPC Name
           if (action.media != null) ...[
-            Center(child: CachedImage(assetPath: action.media, size: 64)),
+            Center(
+              child: CachedImage(
+                assetPath: action.media,
+                size: Style.featuredImageSize,
+              ),
+            ),
             const SizedBox(height: 8),
           ],
           const Text(
