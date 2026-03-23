@@ -540,6 +540,18 @@ bool rollAndCollectDrops(
 
   final doublingChance = action.doublingChance(modifiers);
 
+  // Compute flat bonus to primary product quantity from mastery/modifiers.
+  final flatProductBonus = modifiers
+      .flatBasePrimaryProductQuantity(
+        skillId: action.skill.id,
+        actionId: action.id.localId,
+        categoryId: action.categoryId,
+      )
+      .floor();
+
+  // The primary product IDs are the keys in the action's output map.
+  final primaryProductIds = action.outputs.keys.toSet();
+
   for (final drop in registries.drops.allDropsForAction(action, selection)) {
     ItemStack? itemStack;
 
@@ -561,6 +573,13 @@ bool rollAndCollectDrops(
       // Only roll if rate < 1.0 to preserve random sequence for other drops
       if (effectiveRate >= 1.0 || random.nextDouble() < effectiveRate) {
         itemStack = drop.toItemStack(registries.items);
+        // Apply flat primary product quantity bonus from mastery.
+        if (flatProductBonus > 0 && primaryProductIds.contains(drop.itemId)) {
+          itemStack = ItemStack(
+            itemStack.item,
+            count: itemStack.count + flatProductBonus,
+          );
+        }
       }
     } else if (drop is ThievingUniqueDrop) {
       // Compute actual player stealth for accurate NPC unique drop rate.
@@ -855,6 +874,26 @@ void _rollMarkDiscovery(
   }
 }
 
+/// Rolls the skill preservation chance to determine if inputs are preserved.
+/// Returns true if inputs should be preserved (not consumed).
+/// In Melvor, preservation chance is capped at 80% by default, modified by
+/// skillPreservationCap.
+bool _rollPreservation(
+  SkillAction action,
+  ModifierAccessors modifiers,
+  Random random,
+) {
+  final chance = modifiers.skillPreservationChance(
+    skillId: action.skill.id,
+    actionId: action.id.localId,
+    categoryId: action.categoryId,
+  );
+  if (chance <= 0) return false;
+  final cap = 80 + modifiers.skillPreservationCap(skillId: action.skill.id);
+  final effective = chance.clamp(0, cap).toDouble() / 100.0;
+  return random.nextDouble() < effective;
+}
+
 /// Completes a skill action, consuming inputs, adding outputs, and awarding XP.
 /// Returns true if the action can repeat (no items were dropped).
 bool completeAction(
@@ -866,19 +905,26 @@ bool completeAction(
   final actionState = builder.state.actionState(action.id);
   final selection = actionState.recipeSelection(action);
 
-  // Consume required items (using selected recipe if applicable)
-  final inputs = action.inputsForRecipe(selection);
-  for (final requirement in inputs.entries) {
-    final item = registries.items.byId(requirement.key);
-    builder.removeInventory(ItemStack(item, count: requirement.value));
-  }
-
-  // Roll drops with doubling applied (using recipe for output multiplier)
+  // Create modifier provider early so it can be used for input consumption.
   final modifierProvider = builder.state.createActionModifierProvider(
     action,
     conditionContext: ConditionContext.empty, // Skill action, no combat.
     consumesOnType: null,
   );
+
+  // Check skill preservation chance (chance to not consume inputs).
+  final preserved = _rollPreservation(action, modifierProvider, random);
+
+  if (!preserved) {
+    // Consume required items (using selected recipe if applicable)
+    final inputs = action.inputsForRecipe(selection);
+    for (final requirement in inputs.entries) {
+      final item = registries.items.byId(requirement.key);
+      builder.removeInventory(ItemStack(item, count: requirement.value));
+    }
+  }
+
+  // Roll drops with doubling applied (using recipe for output multiplier)
   final canRepeatAction = rollAndCollectDrops(
     builder,
     action,
