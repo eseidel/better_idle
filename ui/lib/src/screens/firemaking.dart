@@ -554,7 +554,7 @@ class _LogCard extends StatelessWidget {
                   // Log image with mastery below
                   Column(
                     children: [
-                      ItemImage(item: logItem, size: 64),
+                      ItemImage(item: logItem, size: Style.featuredImageSize),
                       const SizedBox(height: 8),
                       // Mastery level with trophy
                       Row(
@@ -720,7 +720,10 @@ class _BonfireCard extends StatelessWidget {
           // Header row with bonfire image
           Row(
             children: [
-              CachedImage(assetPath: bonfireImage, size: 64),
+              CachedImage(
+                assetPath: bonfireImage,
+                size: Style.featuredImageSize,
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(

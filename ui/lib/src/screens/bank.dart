@@ -413,7 +413,12 @@ class StackCell extends StatelessWidget {
                   : Style.cellBorderColorSuccess,
               count: stack.count,
               child: Center(
-                child: ItemImage(item: stack.item, size: _inradius * 0.6),
+                child: ItemImage(
+                  item: stack.item,
+                  size: MediaQuery.sizeOf(context).width >= sidebarBreakpoint
+                      ? Style.bankImageSizeDesktop
+                      : Style.bankImageSizeMobile,
+                ),
               ),
             ),
             // Selection checkmark overlay

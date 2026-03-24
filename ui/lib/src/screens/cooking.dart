@@ -921,7 +921,10 @@ class _RecipeCard extends StatelessWidget {
                   // Product image with mastery below
                   Column(
                     children: [
-                      ItemImage(item: productItem, size: 64),
+                      ItemImage(
+                        item: productItem,
+                        size: Style.featuredImageSize,
+                      ),
                       const SizedBox(height: 8),
                       // Mastery level with trophy
                       Row(

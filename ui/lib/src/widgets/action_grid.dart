@@ -99,7 +99,7 @@ class LockedActionCell extends StatelessWidget {
         children: [
           const Text('Locked'),
           const SizedBox(height: 8),
-          CachedImage(assetPath: imageAsset, size: 64),
+          CachedImage(assetPath: imageAsset, size: Style.featuredImageSize),
           const SizedBox(height: 8),
           LockedLevelBadge(level: unlockLevel),
         ],
@@ -265,7 +265,7 @@ class WoodcuttingActionCell extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          CachedImage(assetPath: action.media, size: 64),
+          CachedImage(assetPath: action.media, size: Style.featuredImageSize),
           const Spacer(),
           ActionProgressBar(action: action),
           const SizedBox(height: 8),
@@ -349,7 +349,7 @@ class MiningActionCell extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          CachedImage(assetPath: action.media, size: 64),
+          CachedImage(assetPath: action.media, size: Style.featuredImageSize),
           const SizedBox(height: 4),
           if (respawnTimeRemaining case final respawnTime?) ...[
             Text(
