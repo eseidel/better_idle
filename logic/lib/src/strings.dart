@@ -133,6 +133,16 @@ String percentValueToString(num value) {
   return '${value.toStringAsFixed(0)}%';
 }
 
+/// Formats a percentage value (0-100) as a chance string.
+/// Whole numbers omit the decimal: 5.0 → "5%", 0.0 → "0%".
+/// Fractional values show one decimal: 2.5 → "2.5%".
+String formatChance(double percent) {
+  if (percent == percent.roundToDouble()) {
+    return '${percent.round()}%';
+  }
+  return '${percent.toStringAsFixed(1)}%';
+}
+
 String signedPercentToString(double value) {
   if (value > 0) {
     return '+${percentToString(value)}';

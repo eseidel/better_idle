@@ -227,14 +227,14 @@ class ProductionActionDisplay extends StatelessWidget {
                 children: [
                   if (showRecycleBadge) ...[
                     RecycleChanceBadgeCell(
-                      chance: _formatChance(
+                      chance: formatChance(
                         state.displayPreservationChance(action),
                       ),
                     ),
                     const SizedBox(width: 16),
                   ],
                   DoubleChanceBadgeCell(
-                    chance: _formatChance(state.displayDoublingChance(action)),
+                    chance: formatChance(state.displayDoublingChance(action)),
                   ),
                 ],
               ),
@@ -372,13 +372,6 @@ class ProductionActionDisplay extends StatelessWidget {
         DurationBadgeCell(seconds: modifiedSeconds),
       ],
     );
-  }
-
-  static String _formatChance(double percent) {
-    if (percent == percent.roundToDouble()) {
-      return '${percent.round()}%';
-    }
-    return '${percent.toStringAsFixed(1)}%';
   }
 }
 

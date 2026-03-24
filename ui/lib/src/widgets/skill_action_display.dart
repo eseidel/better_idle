@@ -213,14 +213,14 @@ class SkillActionDisplay extends StatelessWidget {
               children: [
                 if (badgeStyle == BadgeStyle.recycleAndDouble) ...[
                   RecycleChanceBadgeCell(
-                    chance: _formatChance(
+                    chance: formatChance(
                       state.displayPreservationChance(action),
                     ),
                   ),
                   const SizedBox(width: 24),
                 ],
                 DoubleChanceBadgeCell(
-                  chance: _formatChance(state.displayDoublingChance(action)),
+                  chance: formatChance(state.displayDoublingChance(action)),
                 ),
               ],
             ),
@@ -317,13 +317,6 @@ class SkillActionDisplay extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static String _formatChance(double percent) {
-    if (percent == percent.roundToDouble()) {
-      return '${percent.round()}%';
-    }
-    return '${percent.toStringAsFixed(1)}%';
   }
 }
 
