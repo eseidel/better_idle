@@ -114,10 +114,24 @@ class ProductionActionDisplay extends StatelessWidget {
 
     // Use recipe-specific inputs/outputs when action has alternatives
     final inputs = action.inputsForRecipe(selection);
-    final outputs = action.outputsForRecipe(
+    final modifiers = _modifiers(state);
+    final flatProductBonus = modifiers
+        .flatBasePrimaryProductQuantity(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+          categoryId: action.categoryId,
+        )
+        .floor();
+    final baseOutputs = action.outputsForRecipe(
       selection,
       masteryLevel: actionState.masteryLevel,
     );
+    // Apply flat product bonus to primary products (keys in the base outputs).
+    final outputs = flatProductBonus > 0
+        ? baseOutputs.map(
+            (key, value) => MapEntry(key, value + flatProductBonus),
+          )
+        : baseOutputs;
 
     // Get product for the icon
     final productItem = state.registries.items.byId(productId);
@@ -139,7 +153,12 @@ class ProductionActionDisplay extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Row 1: Product icon (1/3) | Name + effect + badges (2/3)
-          _buildHeaderRow(context, productItem, inventoryCount),
+          _buildHeaderRow(
+            context,
+            productItem,
+            inventoryCount,
+            modifiers: modifiers,
+          ),
           const SizedBox(height: 12),
 
           // Row 2: Mastery progress
@@ -172,17 +191,26 @@ class ProductionActionDisplay extends StatelessWidget {
           ],
 
           // Row 7: Action button with duration
-          _buildButtonRow(context, isActive, canStart),
+          _buildButtonRow(context, isActive, canStart, state),
         ],
       ),
     );
   }
 
+  /// Creates a [ModifierProvider] for display purposes.
+  ModifierProvider _modifiers(GlobalState state) =>
+      state.createActionModifierProvider(
+        action,
+        conditionContext: ConditionContext.empty,
+        consumesOnType: null,
+      );
+
   Widget _buildHeaderRow(
     BuildContext context,
     Item productItem,
-    int inventoryCount,
-  ) {
+    int inventoryCount, {
+    required ModifierProvider modifiers,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -229,10 +257,22 @@ class ProductionActionDisplay extends StatelessWidget {
               Row(
                 children: [
                   if (showRecycleBadge) ...[
-                    const RecycleChanceBadgeCell(chance: '0%'),
+                    RecycleChanceBadgeCell(
+                      chance: _formatChance(
+                        modifiers.skillPreservationChance(
+                          skillId: action.skill.id,
+                          actionId: action.id.localId,
+                          categoryId: action.categoryId,
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 16),
                   ],
-                  const DoubleChanceBadgeCell(chance: '0%'),
+                  DoubleChanceBadgeCell(
+                    chance: _formatChance(
+                      action.doublingChance(modifiers) * 100,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -348,7 +388,14 @@ class ProductionActionDisplay extends StatelessWidget {
     );
   }
 
-  Widget _buildButtonRow(BuildContext context, bool isActive, bool canStart) {
+  Widget _buildButtonRow(
+    BuildContext context,
+    bool isActive,
+    bool canStart,
+    GlobalState state,
+  ) {
+    final modifiedTicks = state.meanDurationWithModifiers(action);
+    final modifiedSeconds = (modifiedTicks * 0.1).round();
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -360,9 +407,16 @@ class ProductionActionDisplay extends StatelessWidget {
           child: Text(isActive ? 'Stop' : buttonText),
         ),
         const SizedBox(width: 16),
-        DurationBadgeCell(seconds: action.minDuration.inSeconds),
+        DurationBadgeCell(seconds: modifiedSeconds),
       ],
     );
+  }
+
+  static String _formatChance(double percent) {
+    if (percent == percent.roundToDouble()) {
+      return '${percent.round()}%';
+    }
+    return '${percent.toStringAsFixed(1)}%';
   }
 }
 
