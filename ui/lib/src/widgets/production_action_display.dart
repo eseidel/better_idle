@@ -112,26 +112,8 @@ class ProductionActionDisplay extends StatelessWidget {
     final isActive = state.isActionActive(action);
     final canStart = state.canStartAction(action);
 
-    // Use recipe-specific inputs/outputs when action has alternatives
     final inputs = action.inputsForRecipe(selection);
-    final modifiers = _modifiers(state);
-    final flatProductBonus = modifiers
-        .flatBasePrimaryProductQuantity(
-          skillId: action.skill.id,
-          actionId: action.id.localId,
-          categoryId: action.categoryId,
-        )
-        .floor();
-    final baseOutputs = action.outputsForRecipe(
-      selection,
-      masteryLevel: actionState.masteryLevel,
-    );
-    // Apply flat product bonus to primary products (keys in the base outputs).
-    final outputs = flatProductBonus > 0
-        ? baseOutputs.map(
-            (key, value) => MapEntry(key, value + flatProductBonus),
-          )
-        : baseOutputs;
+    final outputs = state.displayOutputs(action);
 
     // Get product for the icon
     final productItem = state.registries.items.byId(productId);
@@ -153,12 +135,7 @@ class ProductionActionDisplay extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Row 1: Product icon (1/3) | Name + effect + badges (2/3)
-          _buildHeaderRow(
-            context,
-            productItem,
-            inventoryCount,
-            modifiers: modifiers,
-          ),
+          _buildHeaderRow(context, state, productItem, inventoryCount),
           const SizedBox(height: 12),
 
           // Row 2: Mastery progress
@@ -197,20 +174,12 @@ class ProductionActionDisplay extends StatelessWidget {
     );
   }
 
-  /// Creates a [ModifierProvider] for display purposes.
-  ModifierProvider _modifiers(GlobalState state) =>
-      state.createActionModifierProvider(
-        action,
-        conditionContext: ConditionContext.empty,
-        consumesOnType: null,
-      );
-
   Widget _buildHeaderRow(
     BuildContext context,
+    GlobalState state,
     Item productItem,
-    int inventoryCount, {
-    required ModifierProvider modifiers,
-  }) {
+    int inventoryCount,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -259,19 +228,13 @@ class ProductionActionDisplay extends StatelessWidget {
                   if (showRecycleBadge) ...[
                     RecycleChanceBadgeCell(
                       chance: _formatChance(
-                        modifiers.skillPreservationChance(
-                          skillId: action.skill.id,
-                          actionId: action.id.localId,
-                          categoryId: action.categoryId,
-                        ),
+                        state.displayPreservationChance(action),
                       ),
                     ),
                     const SizedBox(width: 16),
                   ],
                   DoubleChanceBadgeCell(
-                    chance: _formatChance(
-                      action.doublingChance(modifiers) * 100,
-                    ),
+                    chance: _formatChance(state.displayDoublingChance(action)),
                   ),
                 ],
               ),
@@ -394,8 +357,7 @@ class ProductionActionDisplay extends StatelessWidget {
     bool canStart,
     GlobalState state,
   ) {
-    final modifiedTicks = state.meanDurationWithModifiers(action);
-    final modifiedSeconds = (modifiedTicks * 0.1).round();
+    final modifiedSeconds = state.displayDurationSeconds(action).round();
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [

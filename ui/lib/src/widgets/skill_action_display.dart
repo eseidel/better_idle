@@ -183,35 +183,9 @@ class SkillActionDisplay extends StatelessWidget {
     final isActive = state.isActionActive(action);
     final canStart = state.canStartAction(action);
 
-    // Create modifier provider for display values.
-    final modifiers = state.createActionModifierProvider(
-      action,
-      conditionContext: ConditionContext.empty,
-      consumesOnType: null,
-    );
-
-    // Get recipe-specific inputs and outputs
     final inputs = action.inputsForRecipe(selection);
-    final flatProductBonus = modifiers
-        .flatBasePrimaryProductQuantity(
-          skillId: action.skill.id,
-          actionId: action.id.localId,
-          categoryId: action.categoryId,
-        )
-        .floor();
-    final baseOutputs = action.outputsForRecipe(
-      selection,
-      masteryLevel: actionState.masteryLevel,
-    );
-    final outputs = flatProductBonus > 0
-        ? baseOutputs.map(
-            (key, value) => MapEntry(key, value + flatProductBonus),
-          )
-        : baseOutputs;
-
-    // Compute modified duration in seconds.
-    final modifiedTicks = state.meanDurationWithModifiers(action);
-    final modifiedSeconds = (modifiedTicks * 0.1).round();
+    final outputs = state.displayOutputs(action);
+    final modifiedSeconds = state.displayDurationSeconds(action).round();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -240,17 +214,13 @@ class SkillActionDisplay extends StatelessWidget {
                 if (badgeStyle == BadgeStyle.recycleAndDouble) ...[
                   RecycleChanceBadgeCell(
                     chance: _formatChance(
-                      modifiers.skillPreservationChance(
-                        skillId: action.skill.id,
-                        actionId: action.id.localId,
-                        categoryId: action.categoryId,
-                      ),
+                      state.displayPreservationChance(action),
                     ),
                   ),
                   const SizedBox(width: 24),
                 ],
                 DoubleChanceBadgeCell(
-                  chance: _formatChance(action.doublingChance(modifiers) * 100),
+                  chance: _formatChance(state.displayDoublingChance(action)),
                 ),
               ],
             ),

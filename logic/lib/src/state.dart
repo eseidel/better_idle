@@ -1918,6 +1918,65 @@ class GlobalState {
     );
   }
 
+  /// Returns the doubling chance percentage (0–100) for the given action.
+  double displayDoublingChance(SkillAction action) {
+    final modifiers = createActionModifierProvider(
+      action,
+      conditionContext: ConditionContext.empty,
+      consumesOnType: null,
+    );
+    return action.doublingChance(modifiers) * 100;
+  }
+
+  /// Returns the preservation chance percentage (0–100) for the given action,
+  /// already capped by the skill preservation cap modifier.
+  double displayPreservationChance(SkillAction action) {
+    final modifiers = createActionModifierProvider(
+      action,
+      conditionContext: ConditionContext.empty,
+      consumesOnType: null,
+    );
+    final chance = modifiers.skillPreservationChance(
+      skillId: action.skill.id,
+      actionId: action.id.localId,
+      categoryId: action.categoryId,
+    );
+    if (chance <= 0) return 0;
+    final cap = 80 + modifiers.skillPreservationCap(skillId: action.skill.id);
+    return chance.clamp(0, cap.toDouble());
+  }
+
+  /// Returns the outputs for display, including mastery flat product bonuses.
+  Map<MelvorId, int> displayOutputs(SkillAction action) {
+    final actionSt = actionState(action.id);
+    final selection = actionSt.recipeSelection(action);
+    final baseOutputs = action.outputsForRecipe(
+      selection,
+      masteryLevel: actionSt.masteryLevel,
+    );
+    final modifiers = createActionModifierProvider(
+      action,
+      conditionContext: ConditionContext.empty,
+      consumesOnType: null,
+    );
+    final flatProductBonus = modifiers
+        .flatBasePrimaryProductQuantity(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+          categoryId: action.categoryId,
+        )
+        .floor();
+    if (flatProductBonus <= 0) return baseOutputs;
+    return baseOutputs.map(
+      (key, value) => MapEntry(key, value + flatProductBonus),
+    );
+  }
+
+  /// Returns the mean duration in seconds with modifiers applied.
+  double displayDurationSeconds(SkillAction action) {
+    return meanDurationWithModifiers(action) * 0.1;
+  }
+
   /// Calculates mean duration with modifiers applied (deterministic).
   int meanDurationWithModifiers(SkillAction action) {
     final ticks = ticksFromDuration(action.meanDuration);
