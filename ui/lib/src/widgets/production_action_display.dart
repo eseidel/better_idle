@@ -112,12 +112,8 @@ class ProductionActionDisplay extends StatelessWidget {
     final isActive = state.isActionActive(action);
     final canStart = state.canStartAction(action);
 
-    // Use recipe-specific inputs/outputs when action has alternatives
     final inputs = action.inputsForRecipe(selection);
-    final outputs = action.outputsForRecipe(
-      selection,
-      masteryLevel: actionState.masteryLevel,
-    );
+    final outputs = state.displayOutputs(action);
 
     // Get product for the icon
     final productItem = state.registries.items.byId(productId);
@@ -139,7 +135,7 @@ class ProductionActionDisplay extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Row 1: Product icon (1/3) | Name + effect + badges (2/3)
-          _buildHeaderRow(context, productItem, inventoryCount),
+          _buildHeaderRow(context, state, productItem, inventoryCount),
           const SizedBox(height: 12),
 
           // Row 2: Mastery progress
@@ -172,7 +168,7 @@ class ProductionActionDisplay extends StatelessWidget {
           ],
 
           // Row 7: Action button with duration
-          _buildButtonRow(context, isActive, canStart),
+          _buildButtonRow(context, isActive, canStart, state),
         ],
       ),
     );
@@ -180,6 +176,7 @@ class ProductionActionDisplay extends StatelessWidget {
 
   Widget _buildHeaderRow(
     BuildContext context,
+    GlobalState state,
     Item productItem,
     int inventoryCount,
   ) {
@@ -229,10 +226,16 @@ class ProductionActionDisplay extends StatelessWidget {
               Row(
                 children: [
                   if (showRecycleBadge) ...[
-                    const RecycleChanceBadgeCell(chance: '0%'),
+                    RecycleChanceBadgeCell(
+                      chance: formatChance(
+                        state.displayPreservationChance(action),
+                      ),
+                    ),
                     const SizedBox(width: 16),
                   ],
-                  const DoubleChanceBadgeCell(chance: '0%'),
+                  DoubleChanceBadgeCell(
+                    chance: formatChance(state.displayDoublingChance(action)),
+                  ),
                 ],
               ),
             ],
@@ -348,7 +351,13 @@ class ProductionActionDisplay extends StatelessWidget {
     );
   }
 
-  Widget _buildButtonRow(BuildContext context, bool isActive, bool canStart) {
+  Widget _buildButtonRow(
+    BuildContext context,
+    bool isActive,
+    bool canStart,
+    GlobalState state,
+  ) {
+    final modifiedSeconds = state.displayDurationSeconds(action).round();
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -360,7 +369,7 @@ class ProductionActionDisplay extends StatelessWidget {
           child: Text(isActive ? 'Stop' : buttonText),
         ),
         const SizedBox(width: 16),
-        DurationBadgeCell(seconds: action.minDuration.inSeconds),
+        DurationBadgeCell(seconds: modifiedSeconds),
       ],
     );
   }

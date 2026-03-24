@@ -183,12 +183,9 @@ class SkillActionDisplay extends StatelessWidget {
     final isActive = state.isActionActive(action);
     final canStart = state.canStartAction(action);
 
-    // Get recipe-specific inputs and outputs
     final inputs = action.inputsForRecipe(selection);
-    final outputs = action.outputsForRecipe(
-      selection,
-      masteryLevel: actionState.masteryLevel,
-    );
+    final outputs = state.displayOutputs(action);
+    final modifiedSeconds = state.displayDurationSeconds(action).round();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -215,10 +212,16 @@ class SkillActionDisplay extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (badgeStyle == BadgeStyle.recycleAndDouble) ...[
-                  const RecycleChanceBadgeCell(chance: '0%'),
+                  RecycleChanceBadgeCell(
+                    chance: formatChance(
+                      state.displayPreservationChance(action),
+                    ),
+                  ),
                   const SizedBox(width: 24),
                 ],
-                const DoubleChanceBadgeCell(chance: '0%'),
+                DoubleChanceBadgeCell(
+                  chance: formatChance(state.displayDoublingChance(action)),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -298,7 +301,7 @@ class SkillActionDisplay extends StatelessWidget {
               children: [
                 const Icon(Icons.access_time, size: 16),
                 const SizedBox(width: 4),
-                Text('${action.minDuration.inSeconds}s'),
+                Text('${modifiedSeconds}s'),
               ],
             ),
           const SizedBox(height: 8),
