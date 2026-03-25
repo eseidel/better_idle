@@ -1311,6 +1311,11 @@ class _AffordableBuildingsGrid extends StatelessWidget {
 
   bool _isAffordable(MelvorId biomeId, TownshipBuilding building) {
     final township = viewModel.township;
+    // Fully purchased buildings (at max with no successor) are not buildable.
+    if (building.maxUpgrades > 0) {
+      final count = township.buildingState(biomeId, building.id).count;
+      if (count >= building.maxUpgrades) return false;
+    }
     final needsRepair = township.buildingNeedsRepair(biomeId, building.id);
     return needsRepair
         ? viewModel.canAffordRepair(biomeId, building.id)
