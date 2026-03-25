@@ -566,39 +566,8 @@ class TownshipViewModel {
   String get nextUpdateTime =>
       compactDurationFromTicks(township.ticksUntilUpdate);
 
-  List<TownshipBuilding> buildingsForBiome(MelvorId biomeId) {
-    final registry = township.registry;
-    final all = registry.buildingsForBiome(biomeId)
-      ..sort((a, b) => registry.compareBuildings(a.id, b.id));
-
-    // Filter upgrade chains: show only the active building in each chain.
-    // Uses per-biome counts since maxUpgrades is a per-biome cap.
-    return all.where((building) {
-      // If this building upgrades from another, only show it when the
-      // predecessor is at max upgrades in this biome.
-      if (building.upgradesFrom != null) {
-        final predecessor = registry.buildingById(building.upgradesFrom!);
-        if (predecessor != null &&
-            !township.isBuildingMaxed(biomeId, predecessor.id)) {
-          return false; // Predecessor still active, hide this upgrade.
-        }
-      }
-
-      // If this building is at max in this biome AND has a successor valid
-      // for this biome, hide it so the successor takes over.
-      if (township.isBuildingMaxed(biomeId, building.id)) {
-        final successorId = registry.upgradesTo[building.id];
-        if (successorId != null) {
-          final successor = registry.buildingById(successorId);
-          if (successor != null && successor.canBuildInBiome(biomeId)) {
-            return false;
-          }
-        }
-      }
-
-      return true;
-    }).toList();
-  }
+  List<TownshipBuilding> buildingsForBiome(MelvorId biomeId) =>
+      township.activeBuildingsForBiome(biomeId);
 
   String? canBuild(MelvorId biomeId, MelvorId buildingId) {
     return _state.canBuildTownshipBuilding(biomeId, buildingId);

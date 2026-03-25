@@ -4570,6 +4570,82 @@ void main() {
     });
   });
 
+  group('activeBuildingsForBiome', () {
+    const biomeId = MelvorId('melvorD:Grasslands');
+    const shelterBId = MelvorId('melvorD:Basic_Shelter');
+    const hutBId = MelvorId('melvorD:Wooden_Hut');
+    const houseBId = MelvorId('melvorD:House');
+
+    late TownshipBuilding shelter;
+    late TownshipBuilding hut;
+    late TownshipBuilding house;
+    late TownshipRegistry registry;
+
+    setUp(() {
+      shelter = testBuilding(
+        id: shelterBId,
+        name: 'Basic Shelter',
+        validBiomes: {biomeId},
+        maxUpgrades: 3,
+      );
+      hut = testBuilding(
+        id: hutBId,
+        name: 'Wooden Hut',
+        validBiomes: {biomeId},
+        maxUpgrades: 3,
+        upgradesFrom: shelterBId,
+      );
+      house = testBuilding(
+        id: houseBId,
+        name: 'House',
+        validBiomes: {biomeId},
+        maxUpgrades: 3,
+        upgradesFrom: hutBId,
+      );
+      registry = TownshipRegistry(
+        buildings: [shelter, hut, house],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+        upgradesTo: {shelterBId: hutBId, hutBId: houseBId},
+      );
+    });
+
+    test('shows only predecessor when not maxed', () {
+      final state = TownshipState(registry: registry);
+      final active = state.activeBuildingsForBiome(biomeId);
+      expect(active.map((b) => b.id), [shelterBId]);
+    });
+
+    test('shows successor when predecessor is maxed', () {
+      final state = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {shelterBId: const BuildingState(count: 3)},
+          ),
+        },
+      );
+      final active = state.activeBuildingsForBiome(biomeId);
+      expect(active.map((b) => b.id), [hutBId]);
+    });
+
+    test('shows final building when maxed with no successor', () {
+      final state = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {
+              shelterBId: const BuildingState(count: 3),
+              hutBId: const BuildingState(count: 3),
+              houseBId: const BuildingState(count: 3),
+            },
+          ),
+        },
+      );
+      final active = state.activeBuildingsForBiome(biomeId);
+      expect(active.map((b) => b.id), [houseBId]);
+    });
+  });
+
   group('TownshipDeity.describeModifiers', () {
     const mountainId = MelvorId('melvorD:Mountains');
     const forestId = MelvorId('melvorD:Forest');
