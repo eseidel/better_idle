@@ -43,7 +43,6 @@ export 'src/summoning_state.dart';
 export 'src/tick.dart';
 export 'src/township_state.dart';
 export 'src/township_update.dart';
-export 'src/view_state.dart';
 // Types
 export 'src/types/drop.dart';
 export 'src/types/equipment.dart';
@@ -63,3 +62,4 @@ export 'src/types/potion_upgrade_result.dart';
 export 'src/types/slayer_task.dart';
 export 'src/types/stunned.dart';
 export 'src/types/time_away.dart';
+export 'src/view_state.dart';
