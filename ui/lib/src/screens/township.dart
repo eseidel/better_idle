@@ -578,25 +578,20 @@ class TownshipViewModel {
       // predecessor is at max upgrades in this biome.
       if (building.upgradesFrom != null) {
         final predecessor = registry.buildingById(building.upgradesFrom!);
-        if (predecessor != null && predecessor.maxUpgrades > 0) {
-          final count = township.buildingState(biomeId, predecessor.id).count;
-          if (count < predecessor.maxUpgrades) {
-            return false; // Predecessor still active, hide this upgrade.
-          }
+        if (predecessor != null &&
+            !township.isBuildingMaxed(biomeId, predecessor.id)) {
+          return false; // Predecessor still active, hide this upgrade.
         }
       }
 
       // If this building is at max in this biome AND has a successor valid
       // for this biome, hide it so the successor takes over.
-      if (building.maxUpgrades > 0) {
-        final count = township.buildingState(biomeId, building.id).count;
-        if (count >= building.maxUpgrades) {
-          final successorId = registry.upgradesTo[building.id];
-          if (successorId != null) {
-            final successor = registry.buildingById(successorId);
-            if (successor != null && successor.canBuildInBiome(biomeId)) {
-              return false;
-            }
+      if (township.isBuildingMaxed(biomeId, building.id)) {
+        final successorId = registry.upgradesTo[building.id];
+        if (successorId != null) {
+          final successor = registry.buildingById(successorId);
+          if (successor != null && successor.canBuildInBiome(biomeId)) {
+            return false;
           }
         }
       }
@@ -1311,11 +1306,7 @@ class _AffordableBuildingsGrid extends StatelessWidget {
 
   bool _isAffordable(MelvorId biomeId, TownshipBuilding building) {
     final township = viewModel.township;
-    // Fully purchased buildings (at max with no successor) are not buildable.
-    if (building.maxUpgrades > 0) {
-      final count = township.buildingState(biomeId, building.id).count;
-      if (count >= building.maxUpgrades) return false;
-    }
+    if (township.isBuildingMaxed(biomeId, building.id)) return false;
     final needsRepair = township.buildingNeedsRepair(biomeId, building.id);
     return needsRepair
         ? viewModel.canAffordRepair(biomeId, building.id)

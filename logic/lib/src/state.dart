@@ -2388,11 +2388,8 @@ class GlobalState {
     }
 
     // Check maxUpgrades limit (per-biome cap)
-    if (building.maxUpgrades > 0) {
-      final biomeCount = township.buildingState(biomeId, buildingId).count;
-      if (biomeCount >= building.maxUpgrades) {
-        return '${building.name} at max (${building.maxUpgrades})';
-      }
+    if (township.isBuildingMaxed(biomeId, buildingId)) {
+      return '${building.name} at max (${building.maxUpgrades})';
     }
 
     // Check resource costs (including GP) with deity modifier applied

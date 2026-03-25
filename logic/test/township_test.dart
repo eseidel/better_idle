@@ -4509,6 +4509,65 @@ void main() {
       );
       expect(state.canBuildTownshipBuilding(biomeId2, buildingId), isNull);
     });
+
+    test('isBuildingMaxed returns true only when at max', () {
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const buildingId = MelvorId('melvorD:Test_Building');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        maxUpgrades: 3,
+      );
+
+      final registry = TownshipRegistry(
+        buildings: [building],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+      );
+
+      // At max (3/3)
+      final maxed = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 3)},
+          ),
+        },
+      );
+      expect(maxed.isBuildingMaxed(biomeId, buildingId), isTrue);
+
+      // Not at max (2/3)
+      final notMaxed = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 2)},
+          ),
+        },
+      );
+      expect(notMaxed.isBuildingMaxed(biomeId, buildingId), isFalse);
+
+      // No maxUpgrades (0 means unlimited)
+      final unlimited = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+      );
+      final unlimitedRegistry = TownshipRegistry(
+        buildings: [unlimited],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+      );
+      final unlimitedState = TownshipState(
+        registry: unlimitedRegistry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 100)},
+          ),
+        },
+      );
+      expect(unlimitedState.isBuildingMaxed(biomeId, buildingId), isFalse);
+    });
   });
 
   group('TownshipDeity.describeModifiers', () {

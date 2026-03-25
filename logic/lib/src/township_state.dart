@@ -354,6 +354,13 @@ class TownshipState {
     return state.count > 0 && state.efficiency < 100;
   }
 
+  /// Returns true if a building has reached its max upgrades in a biome.
+  bool isBuildingMaxed(MelvorId biomeId, MelvorId buildingId) {
+    final building = registry.buildingById(buildingId);
+    if (building == null || building.maxUpgrades <= 0) return false;
+    return buildingState(biomeId, buildingId).count >= building.maxUpgrades;
+  }
+
   /// Returns the total count of a building across all biomes.
   int totalBuildingCount(MelvorId buildingId) {
     var count = 0;
