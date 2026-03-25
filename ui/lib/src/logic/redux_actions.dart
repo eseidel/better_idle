@@ -136,6 +136,18 @@ class SetSelectedSkillAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Sets a view preference (e.g., filter or toggle) by key.
+class SetViewPreference extends ReduxAction<GlobalState> {
+  SetViewPreference({required this.key, required this.value});
+  final String key;
+  final String value;
+
+  @override
+  GlobalState reduce() {
+    return state.setViewPreference(key, value);
+  }
+}
+
 /// Advances the game by a specified number of ticks and returns the changes.
 /// Unlike UpdateActivityProgressAction, this does not show toasts.
 class DebugAdvanceTicksAction extends ReduxAction<GlobalState> {

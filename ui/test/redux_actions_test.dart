@@ -2372,6 +2372,45 @@ void main() {
     });
   });
 
+  group('SetViewPreference', () {
+    test('sets a view preference', () {
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState);
+
+      expect(store.state.viewPreference('shop.affordableOnly'), isNull);
+
+      store.dispatch(
+        SetViewPreference(key: 'shop.affordableOnly', value: 'true'),
+      );
+
+      expect(store.state.viewPreference('shop.affordableOnly'), 'true');
+    });
+
+    test('updates existing preference', () {
+      final registries = Registries.test();
+      final initialState = GlobalState.empty(registries);
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(
+          SetViewPreference(
+            key: 'township.buildingFilter',
+            value: 'affordable',
+          ),
+        );
+
+      expect(
+        store.state.viewPreference('township.buildingFilter'),
+        'affordable',
+      );
+
+      store.dispatch(
+        SetViewPreference(key: 'township.buildingFilter', value: 'all'),
+      );
+
+      expect(store.state.viewPreference('township.buildingFilter'), 'all');
+    });
+  });
+
   group('SpendMasteryPoolAction', () {
     late Registries registries;
     late SkillAction normalTree;

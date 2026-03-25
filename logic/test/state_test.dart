@@ -2389,10 +2389,12 @@ void main() {
 
       final state = GlobalState.test(
         testRegistries,
-        selectedSkillActions: const {
-          Skill.woodcutting: normalTree,
-          Skill.firemaking: normalLogs,
-        },
+        viewState: const ViewState(
+          selectedSkillActions: {
+            Skill.woodcutting: normalTree,
+            Skill.firemaking: normalLogs,
+          },
+        ),
       );
 
       // Convert to JSON and back
@@ -2428,8 +2430,41 @@ void main() {
       final json = state.toJson();
       final loaded = GlobalState.fromJson(testRegistries, json);
 
-      expect(loaded.selectedSkillActions, isEmpty);
+      expect(loaded.viewState.selectedSkillActions, isEmpty);
       expect(loaded.selectedSkillAction(Skill.woodcutting), isNull);
+    });
+  });
+
+  group('viewPreferences', () {
+    test('viewPreference returns null when not set', () {
+      final state = GlobalState.test(testRegistries);
+      expect(state.viewPreference('township.buildingFilter'), isNull);
+    });
+
+    test('setViewPreference stores and retrieves value', () {
+      final state = GlobalState.test(testRegistries);
+      final updated = state.setViewPreference('shop.affordableOnly', 'true');
+      expect(updated.viewPreference('shop.affordableOnly'), 'true');
+      expect(updated.viewPreference('other.key'), isNull);
+    });
+
+    test('viewPreferences round-trip through JSON', () {
+      final state = GlobalState.test(testRegistries)
+          .setViewPreference('township.buildingFilter', 'affordable')
+          .setViewPreference('shop.affordableOnly', 'true');
+
+      final json = state.toJson();
+      final loaded = GlobalState.fromJson(testRegistries, json);
+
+      expect(loaded.viewPreference('township.buildingFilter'), 'affordable');
+      expect(loaded.viewPreference('shop.affordableOnly'), 'true');
+    });
+
+    test('empty viewPreferences round-trip through JSON', () {
+      final state = GlobalState.test(testRegistries);
+      final json = state.toJson();
+      final loaded = GlobalState.fromJson(testRegistries, json);
+      expect(loaded.viewState.viewPreferences, isEmpty);
     });
   });
 

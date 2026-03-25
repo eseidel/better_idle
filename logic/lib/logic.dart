@@ -43,6 +43,7 @@ export 'src/summoning_state.dart';
 export 'src/tick.dart';
 export 'src/township_state.dart';
 export 'src/township_update.dart';
+export 'src/view_state.dart';
 // Types
 export 'src/types/drop.dart';
 export 'src/types/equipment.dart';
