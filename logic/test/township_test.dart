@@ -4509,6 +4509,141 @@ void main() {
       );
       expect(state.canBuildTownshipBuilding(biomeId2, buildingId), isNull);
     });
+
+    test('isBuildingMaxed returns true only when at max', () {
+      const biomeId = MelvorId('melvorD:Grasslands');
+      const buildingId = MelvorId('melvorD:Test_Building');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        maxUpgrades: 3,
+      );
+
+      final registry = TownshipRegistry(
+        buildings: [building],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+      );
+
+      // At max (3/3)
+      final maxed = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 3)},
+          ),
+        },
+      );
+      expect(maxed.isBuildingMaxed(biomeId, buildingId), isTrue);
+
+      // Not at max (2/3)
+      final notMaxed = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 2)},
+          ),
+        },
+      );
+      expect(notMaxed.isBuildingMaxed(biomeId, buildingId), isFalse);
+
+      // No maxUpgrades (0 means unlimited)
+      final unlimited = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+      );
+      final unlimitedRegistry = TownshipRegistry(
+        buildings: [unlimited],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+      );
+      final unlimitedState = TownshipState(
+        registry: unlimitedRegistry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 100)},
+          ),
+        },
+      );
+      expect(unlimitedState.isBuildingMaxed(biomeId, buildingId), isFalse);
+    });
+  });
+
+  group('activeBuildingsForBiome', () {
+    const biomeId = MelvorId('melvorD:Grasslands');
+    const shelterBId = MelvorId('melvorD:Basic_Shelter');
+    const hutBId = MelvorId('melvorD:Wooden_Hut');
+    const houseBId = MelvorId('melvorD:House');
+
+    late TownshipBuilding shelter;
+    late TownshipBuilding hut;
+    late TownshipBuilding house;
+    late TownshipRegistry registry;
+
+    setUp(() {
+      shelter = testBuilding(
+        id: shelterBId,
+        name: 'Basic Shelter',
+        validBiomes: {biomeId},
+        maxUpgrades: 3,
+      );
+      hut = testBuilding(
+        id: hutBId,
+        name: 'Wooden Hut',
+        validBiomes: {biomeId},
+        maxUpgrades: 3,
+        upgradesFrom: shelterBId,
+      );
+      house = testBuilding(
+        id: houseBId,
+        name: 'House',
+        validBiomes: {biomeId},
+        maxUpgrades: 3,
+        upgradesFrom: hutBId,
+      );
+      registry = TownshipRegistry(
+        buildings: [shelter, hut, house],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+        upgradesTo: {shelterBId: hutBId, hutBId: houseBId},
+      );
+    });
+
+    test('shows only predecessor when not maxed', () {
+      final state = TownshipState(registry: registry);
+      final active = state.activeBuildingsForBiome(biomeId);
+      expect(active.map((b) => b.id), [shelterBId]);
+    });
+
+    test('shows successor when predecessor is maxed', () {
+      final state = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {shelterBId: const BuildingState(count: 3)},
+          ),
+        },
+      );
+      final active = state.activeBuildingsForBiome(biomeId);
+      expect(active.map((b) => b.id), [hutBId]);
+    });
+
+    test('shows final building when maxed with no successor', () {
+      final state = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {
+              shelterBId: const BuildingState(count: 3),
+              hutBId: const BuildingState(count: 3),
+              houseBId: const BuildingState(count: 3),
+            },
+          ),
+        },
+      );
+      final active = state.activeBuildingsForBiome(biomeId);
+      expect(active.map((b) => b.id), [houseBId]);
+    });
   });
 
   group('TownshipDeity.describeModifiers', () {

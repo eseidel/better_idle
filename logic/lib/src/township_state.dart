@@ -354,6 +354,45 @@ class TownshipState {
     return state.count > 0 && state.efficiency < 100;
   }
 
+  /// Returns the active buildings for a biome, filtering upgrade chains so
+  /// only the current tier in each chain is shown.
+  List<TownshipBuilding> activeBuildingsForBiome(MelvorId biomeId) {
+    final all = registry.buildingsForBiome(biomeId)
+      ..sort((a, b) => registry.compareBuildings(a.id, b.id));
+
+    return all.where((building) {
+      // If this building upgrades from another, only show it when the
+      // predecessor is at max upgrades in this biome.
+      if (building.upgradesFrom != null) {
+        final predecessor = registry.buildingById(building.upgradesFrom!);
+        if (predecessor != null && !isBuildingMaxed(biomeId, predecessor.id)) {
+          return false;
+        }
+      }
+
+      // If this building is at max in this biome AND has a successor valid
+      // for this biome, hide it so the successor takes over.
+      if (isBuildingMaxed(biomeId, building.id)) {
+        final successorId = registry.upgradesTo[building.id];
+        if (successorId != null) {
+          final successor = registry.buildingById(successorId);
+          if (successor != null && successor.canBuildInBiome(biomeId)) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    }).toList();
+  }
+
+  /// Returns true if a building has reached its max upgrades in a biome.
+  bool isBuildingMaxed(MelvorId biomeId, MelvorId buildingId) {
+    final building = registry.buildingById(buildingId);
+    if (building == null || building.maxUpgrades <= 0) return false;
+    return buildingState(biomeId, buildingId).count >= building.maxUpgrades;
+  }
+
   /// Returns the total count of a building across all biomes.
   int totalBuildingCount(MelvorId buildingId) {
     var count = 0;
