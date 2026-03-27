@@ -123,6 +123,9 @@ class RunecraftingRegistry {
     _categoryById = {for (final c in _categories) c.id: c};
   }
 
+  RunecraftingRegistry.empty()
+    : this(actions: const [], categories: const [], runeItemIds: const {});
+
   final List<RunecraftingAction> _actions;
   final List<RunecraftingCategory> _categories;
   final Set<MelvorId> _runeItemIds;
@@ -148,21 +151,30 @@ class RunecraftingRegistry {
   ///
   /// [reductionPercent] is the total percentage reduction (e.g., 45 = 45%).
   /// Only items that are runes have their costs reduced.
-  /// Each rune cost is reduced to `max(1, floor(cost * (1 - pct/100)))`.
   Map<MelvorId, int> applyRuneCostReduction(
     Map<MelvorId, int> inputs,
     int reductionPercent,
-  ) {
-    if (reductionPercent <= 0) return inputs;
-    final result = <MelvorId, int>{};
-    for (final entry in inputs.entries) {
-      if (isRune(entry.key)) {
-        final reduced = (entry.value * (1 - reductionPercent / 100)).floor();
-        result[entry.key] = math.max(1, reduced);
-      } else {
-        result[entry.key] = entry.value;
-      }
+  ) => applyItemCostReduction(inputs, reductionPercent, isRune);
+}
+
+/// Reduces input costs by [reductionPercent] for items matching [isAffected].
+///
+/// Each matching item's cost becomes `max(1, floor(cost * (1 - pct/100)))`.
+/// Non-matching items are returned unchanged.
+Map<MelvorId, int> applyItemCostReduction(
+  Map<MelvorId, int> inputs,
+  int reductionPercent,
+  bool Function(MelvorId) isAffected,
+) {
+  if (reductionPercent <= 0) return inputs;
+  final result = <MelvorId, int>{};
+  for (final entry in inputs.entries) {
+    if (isAffected(entry.key)) {
+      final reduced = (entry.value * (1 - reductionPercent / 100)).floor();
+      result[entry.key] = math.max(1, reduced);
+    } else {
+      result[entry.key] = entry.value;
     }
-    return result;
   }
+  return result;
 }

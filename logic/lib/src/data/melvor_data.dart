@@ -746,11 +746,7 @@ HerbloreRegistry parseHerblore(List<SkillDataEntry>? entries) {
 /// Parses all runecrafting data. Returns RunecraftingRegistry.
 RunecraftingRegistry parseRunecrafting(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return RunecraftingRegistry(
-      actions: const [],
-      categories: const [],
-      runeItemIds: const {},
-    );
+    return RunecraftingRegistry.empty();
   }
 
   final actions = <RunecraftingAction>[];

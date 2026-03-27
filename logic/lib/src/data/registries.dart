@@ -156,11 +156,7 @@ class Registries {
        fletching = FletchingRegistry(actions: const [], categories: const []),
        crafting = CraftingRegistry(actions: const [], categories: const []),
        herblore = HerbloreRegistry(actions: const [], categories: const []),
-       runecrafting = RunecraftingRegistry(
-         actions: const [],
-         categories: const [],
-         runeItemIds: const {},
-       ),
+       runecrafting = RunecraftingRegistry.empty(),
        thieving = ThievingRegistry(actions: const [], areas: const []),
        farming =
            farming ??
