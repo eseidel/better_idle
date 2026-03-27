@@ -586,6 +586,9 @@ class ItemRegistry {
     return item;
   }
 
+  /// Returns the item by MelvorId, or null if not found.
+  Item? maybeById(MelvorId id) => _byId[id.toJson()];
+
   /// Returns the item by name, or throws a StateError if not found.
   @visibleForTesting
   Item byName(String name) {

@@ -301,6 +301,7 @@ class ModifierProvider with ModifierAccessors {
         for (final bonus in skillBonuses.bonuses) {
           final count = bonus.countAtLevel(masteryLevel);
           if (count == 0) continue;
+          if (!bonus.matchesCategory(categoryId)) continue;
 
           for (final mod in bonus.modifiers.modifiers) {
             if (mod.name != name) continue;

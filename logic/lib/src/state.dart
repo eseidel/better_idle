@@ -1055,13 +1055,38 @@ class GlobalState {
   /// Returns true if there is loot waiting to be collected.
   bool get hasLoot => loot.isNotEmpty;
 
+  /// Returns the effective inputs for a skill action, applying any cost
+  /// reduction modifiers (e.g., runecraftingRuneCostReduction).
+  // TODO(future): Also apply nonShardSummoningCostReduction and
+  // agilityObstacleItemCost modifiers here.
+  Map<MelvorId, int> effectiveInputs(SkillAction action) {
+    final actionStateVal = actionState(action.id);
+    final selection = actionStateVal.recipeSelection(action);
+    var inputs = action.inputsForRecipe(selection);
+    if (action is RunecraftingAction) {
+      final modifiers = createActionModifierProvider(
+        action,
+        conditionContext: ConditionContext.empty,
+        consumesOnType: null,
+      );
+      final reduction = modifiers.runecraftingRuneCostReduction(
+        skillId: action.skill.id,
+        actionId: action.id.localId,
+        categoryId: action.categoryId,
+      );
+      inputs = registries.runecrafting.applyRuneCostReduction(
+        inputs,
+        reduction,
+      );
+    }
+    return inputs;
+  }
+
   /// Returns true if all required inputs for the action are available.
   bool canStartAction(Action action) {
     // Only SkillActions have inputs to check
     if (action is SkillAction) {
-      final actionStateVal = actionState(action.id);
-      final selection = actionStateVal.recipeSelection(action);
-      final inputs = action.inputsForRecipe(selection);
+      final inputs = effectiveInputs(action);
 
       // Check inputs
       for (final requirement in inputs.entries) {
@@ -1501,8 +1526,7 @@ class GlobalState {
     if (action is CookingAction) {
       // Cooking uses CookingActivity for multi-area progress tracking
       final actionStateVal = prepared.actionState(actionId);
-      final selection = actionStateVal.recipeSelection(action);
-      final inputs = action.inputsForRecipe(selection);
+      final inputs = prepared.effectiveInputs(action);
 
       // Validate that all required items are available
       for (final requirement in inputs.entries) {
@@ -1550,8 +1574,7 @@ class GlobalState {
       );
     } else if (action is SkillAction) {
       final actionStateVal = prepared.actionState(actionId);
-      final selection = actionStateVal.recipeSelection(action);
-      final inputs = action.inputsForRecipe(selection);
+      final inputs = prepared.effectiveInputs(action);
 
       // Validate that all required items are available for skill actions
       for (final requirement in inputs.entries) {

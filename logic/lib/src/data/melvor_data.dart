@@ -200,7 +200,7 @@ class MelvorData {
     _shop = parseShop(dataFiles, cookingCategories: _cooking.categories);
 
     // Parse mastery bonuses for all skills
-    _masteryBonuses = parseMasteryBonuses(skillDataById);
+    _masteryBonuses = parseMasteryBonuses(skillDataById, _items);
 
     // Parse mastery unlocks (display-only descriptions) for all skills
     _masteryUnlocks = parseMasteryUnlocks(skillDataById);
@@ -746,11 +746,12 @@ HerbloreRegistry parseHerblore(List<SkillDataEntry>? entries) {
 /// Parses all runecrafting data. Returns RunecraftingRegistry.
 RunecraftingRegistry parseRunecrafting(List<SkillDataEntry>? entries) {
   if (entries == null) {
-    return RunecraftingRegistry(actions: const [], categories: const []);
+    return RunecraftingRegistry.empty();
   }
 
   final actions = <RunecraftingAction>[];
   final categories = <RunecraftingCategory>[];
+  final runeItemIds = <MelvorId>{};
 
   for (final entry in entries) {
     final recipes = entry.data['recipes'] as List<dynamic>?;
@@ -776,9 +777,25 @@ RunecraftingRegistry parseRunecrafting(List<SkillDataEntry>? entries) {
         ),
       );
     }
+
+    // Collect rune item IDs (elemental + combination) for cost reduction.
+    final elementalIds = entry.data['elementalRuneIDs'] as List<dynamic>?;
+    if (elementalIds != null) {
+      runeItemIds.addAll(
+        elementalIds.map((id) => MelvorId.fromJson(id as String)),
+      );
+    }
+    final comboIds = entry.data['comboRuneIDs'] as List<dynamic>?;
+    if (comboIds != null) {
+      runeItemIds.addAll(comboIds.map((id) => MelvorId.fromJson(id as String)));
+    }
   }
 
-  return RunecraftingRegistry(actions: actions, categories: categories);
+  return RunecraftingRegistry(
+    actions: actions,
+    categories: categories,
+    runeItemIds: runeItemIds,
+  );
 }
 
 /// Parses all thieving data. Returns ThievingRegistry.
@@ -948,14 +965,71 @@ ShopRegistry parseShop(
   );
 }
 
+/// Builds a filter map for runecrafting mastery bonuses by examining each
+/// recipe's product `itemType` and grouping categories accordingly.
+///
+/// The Melvor JSON `filter` field (e.g., "Rune", "Equipment") corresponds to
+/// the product's `itemType`. "Equipment" matches both "Equipment" and "Weapon"
+/// item types.
+Map<String, Set<MelvorId>> _buildRunecraftingFilterMap(
+  List<SkillDataEntry>? entries,
+  ItemRegistry items,
+) {
+  if (entries == null) return const {};
+
+  final filterToCategories = <String, Set<MelvorId>>{};
+
+  for (final entry in entries) {
+    final recipes = entry.data['recipes'] as List<dynamic>? ?? [];
+    for (final recipe in recipes) {
+      final json = recipe as Map<String, dynamic>;
+      final categoryIdStr = json['categoryID'] as String?;
+      if (categoryIdStr == null) continue;
+
+      final productId = MelvorId.fromJsonWithNamespace(
+        json['productID'] as String,
+        defaultNamespace: entry.namespace,
+      );
+      final product = items.maybeById(productId);
+      if (product == null) continue;
+
+      final categoryId = MelvorId.fromJsonWithNamespace(
+        categoryIdStr,
+        defaultNamespace: entry.namespace,
+      );
+
+      // Map itemType to filter name. "Equipment" and "Weapon" both map to
+      // the "Equipment" filter.
+      final filter = switch (product.itemType) {
+        'Equipment' || 'Weapon' => 'Equipment',
+        _ => product.itemType,
+      };
+      (filterToCategories[filter] ??= {}).add(categoryId);
+    }
+  }
+
+  return filterToCategories;
+}
+
 /// Parses mastery level bonuses for all skills.
 MasteryBonusRegistry parseMasteryBonuses(
   Map<String, List<SkillDataEntry>> skillDataById,
+  ItemRegistry items,
 ) {
+  // Build filter maps from data for skills that use mastery bonus filters.
+  final runecraftingFilterMap = _buildRunecraftingFilterMap(
+    skillDataById['melvorD:Runecrafting'],
+    items,
+  );
+  final filterMaps = <String, Map<String, Set<MelvorId>>>{
+    'melvorD:Runecrafting': runecraftingFilterMap,
+  };
+
   final skillBonuses = <SkillMasteryBonuses>[];
 
   for (final entry in skillDataById.entries) {
     final skillId = MelvorId.fromJson(entry.key);
+    final filterMap = filterMaps[entry.key] ?? const {};
     final bonuses = <MasteryLevelBonus>[];
 
     // Collect bonuses from all data entries for this skill
@@ -964,6 +1038,7 @@ MasteryBonusRegistry parseMasteryBonuses(
         parseMasteryLevelBonuses(
           dataEntry.data,
           namespace: dataEntry.namespace,
+          filterMap: filterMap,
         ),
       );
     }
