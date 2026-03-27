@@ -1057,6 +1057,8 @@ class GlobalState {
 
   /// Returns the effective inputs for a skill action, applying any cost
   /// reduction modifiers (e.g., runecraftingRuneCostReduction).
+  // TODO(future): Also apply nonShardSummoningCostReduction and
+  // agilityObstacleItemCost modifiers here.
   Map<MelvorId, int> effectiveInputs(SkillAction action) {
     final actionStateVal = actionState(action.id);
     final selection = actionStateVal.recipeSelection(action);
