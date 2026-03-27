@@ -279,9 +279,10 @@ class SkillAction extends Action {
   bool get hasAlternativeRecipes =>
       alternativeRecipes != null && alternativeRecipes!.isNotEmpty;
 
-  /// Returns the inputs for the given recipe selection.
-  /// For NoSelectedRecipe, returns the base inputs.
-  /// For SelectedRecipe, returns inputs from the selected alternative recipe.
+  /// Returns the base (unmodified) inputs for the given recipe selection.
+  ///
+  /// This does NOT apply cost reduction modifiers. Gameplay code that needs
+  /// modifier-adjusted costs should use `GlobalState.effectiveInputs` instead.
   Map<MelvorId, int> inputsForRecipe(RecipeSelection selection) {
     return switch (selection) {
       NoSelectedRecipe() => inputs,

@@ -903,7 +903,7 @@ bool completeAction(
   final actionState = builder.state.actionState(action.id);
   final selection = actionState.recipeSelection(action);
 
-  // Create modifier provider early so it can be used for input consumption.
+  // Create modifier provider for preservation, doubling, and XP calculations.
   final modifierProvider = builder.state.createActionModifierProvider(
     action,
     conditionContext: ConditionContext.empty, // Skill action, no combat.
