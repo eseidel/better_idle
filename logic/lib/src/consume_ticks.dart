@@ -916,20 +916,7 @@ bool completeAction(
   final preserved = _rollPreservation(action, modifierProvider, random);
 
   if (!preserved) {
-    // Consume required items (using selected recipe if applicable)
-    var inputs = action.inputsForRecipe(selection);
-    // Apply rune cost reduction for runecrafting equipment actions.
-    if (action is RunecraftingAction) {
-      final reduction = modifierProvider.runecraftingRuneCostReduction(
-        skillId: action.skill.id,
-        actionId: action.id.localId,
-        categoryId: action.categoryId,
-      );
-      inputs = registries.runecrafting.applyRuneCostReduction(
-        inputs,
-        reduction,
-      );
-    }
+    final inputs = builder.state.effectiveInputs(action);
     for (final requirement in inputs.entries) {
       final item = registries.items.byId(requirement.key);
       builder.removeInventory(ItemStack(item, count: requirement.value));
@@ -2053,6 +2040,7 @@ ConsumeTicksStopReason consumeTicksUntil(
   // Compute doubling chance and recipe selection for predictions
   var doublingChance = 0.0;
   RecipeSelection recipeSelection = const NoSelectedRecipe();
+  Map<MelvorId, int>? effectiveInputs;
   if (action is SkillAction) {
     final modifierProvider = state.createActionModifierProvider(
       action,
@@ -2062,6 +2050,7 @@ ConsumeTicksStopReason consumeTicksUntil(
     doublingChance = action.doublingChance(modifierProvider);
     final actionState = state.actionState(action.id);
     recipeSelection = actionState.recipeSelection(action);
+    effectiveInputs = state.effectiveInputs(action);
   }
   final timeAway = TimeAway(
     registries: registries,
@@ -2079,6 +2068,7 @@ ConsumeTicksStopReason consumeTicksUntil(
     stoppedAfter: stoppedAfter,
     doublingChance: doublingChance,
     pendingLoot: builder.state.loot,
+    effectiveInputs: effectiveInputs,
   );
   return (timeAway, builder.build());
 }

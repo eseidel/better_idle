@@ -72,7 +72,8 @@ class TimeAway {
     this.stoppedAfter,
     this.doublingChance = 0.0,
     this.pendingLoot = const LootState.empty(),
-  });
+    Map<MelvorId, int>? effectiveInputs,
+  }) : _effectiveInputs = effectiveInputs;
 
   factory TimeAway.fromJson(Registries registries, Map<String, dynamic> json) {
     final actionId = ActionId.maybeFromJson(json['activeAction'] as String?);
@@ -186,6 +187,10 @@ class TimeAway {
   /// Loot pending collection when the player returns.
   final LootState pendingLoot;
 
+  /// Pre-computed effective inputs (with cost reduction applied), or null
+  /// to fall back to base recipe inputs.
+  final Map<MelvorId, int>? _effectiveInputs;
+
   Duration get duration => endTime.difference(startTime);
 
   /// Calculates the predicted XP per hour for each skill based on the active
@@ -255,7 +260,7 @@ class TimeAway {
   }
 
   /// Calculates the predicted items consumed per hour based on the active
-  /// action's inputs. Returns a map of item name to items per hour.
+  /// action's effective inputs (with cost reduction applied).
   /// Returns empty map for CombatActions (combat has no inputs).
   Map<MelvorId, double> get itemsConsumedPerHour {
     final action = activeAction;
@@ -263,7 +268,7 @@ class TimeAway {
       return {};
     }
 
-    final inputs = action.inputsForRecipe(recipeSelection);
+    final inputs = _effectiveInputs ?? action.inputsForRecipe(recipeSelection);
     if (inputs.isEmpty) {
       return {};
     }
@@ -298,6 +303,7 @@ class TimeAway {
     Duration? stoppedAfter,
     double? doublingChance,
     LootState? pendingLoot,
+    Map<MelvorId, int>? effectiveInputs,
   }) {
     return TimeAway(
       registries: registries,
@@ -312,6 +318,7 @@ class TimeAway {
       stoppedAfter: stoppedAfter ?? this.stoppedAfter,
       doublingChance: doublingChance ?? this.doublingChance,
       pendingLoot: pendingLoot ?? this.pendingLoot,
+      effectiveInputs: effectiveInputs ?? _effectiveInputs,
     );
   }
 
@@ -372,6 +379,7 @@ class TimeAway {
       stoppedAfter: mergedStoppedAfter,
       doublingChance: mergedDoublingChance,
       pendingLoot: mergedPendingLoot,
+      effectiveInputs: _effectiveInputs ?? other._effectiveInputs,
     );
   }
 
