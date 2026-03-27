@@ -746,8 +746,6 @@ void completeCookingAction(
   required bool isPassive,
 }) {
   final registries = builder.registries;
-  final actionState = builder.state.actionState(action.id);
-  final selection = actionState.recipeSelection(action);
   final masteryLevel = builder.currentMasteryLevel(action);
   final modifiers = builder.state.createActionModifierProvider(
     action,
@@ -766,7 +764,7 @@ void completeCookingAction(
   final success = random.nextDouble() < successChance;
 
   // Always consume inputs (preservation doesn't apply to cooking failures)
-  final inputs = action.inputsForRecipe(selection);
+  final inputs = builder.state.effectiveInputs(action);
   for (final requirement in inputs.entries) {
     final item = registries.items.byId(requirement.key);
     builder.removeInventory(ItemStack(item, count: requirement.value));

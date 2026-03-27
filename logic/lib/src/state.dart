@@ -1526,8 +1526,7 @@ class GlobalState {
     if (action is CookingAction) {
       // Cooking uses CookingActivity for multi-area progress tracking
       final actionStateVal = prepared.actionState(actionId);
-      final selection = actionStateVal.recipeSelection(action);
-      final inputs = action.inputsForRecipe(selection);
+      final inputs = prepared.effectiveInputs(action);
 
       // Validate that all required items are available
       for (final requirement in inputs.entries) {
@@ -1575,8 +1574,7 @@ class GlobalState {
       );
     } else if (action is SkillAction) {
       final actionStateVal = prepared.actionState(actionId);
-      final selection = actionStateVal.recipeSelection(action);
-      final inputs = action.inputsForRecipe(selection);
+      final inputs = prepared.effectiveInputs(action);
 
       // Validate that all required items are available for skill actions
       for (final requirement in inputs.entries) {
