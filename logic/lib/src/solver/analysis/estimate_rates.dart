@@ -241,8 +241,9 @@ Rates estimateRatesForAction(GlobalState state, ActionId actionId) {
     selection,
   );
 
-  // Compute items consumed per tick for consuming actions
-  final inputs = action.inputsForRecipe(selection);
+  // Compute items consumed per tick for consuming actions, applying
+  // rune cost reduction for runecrafting.
+  final inputs = state.effectiveInputs(action);
   final itemsConsumedPerTick = <MelvorId, double>{};
   for (final entry in inputs.entries) {
     itemsConsumedPerTick[entry.key] = entry.value / expectedTicks;
@@ -403,8 +404,9 @@ Rates estimateRates(GlobalState state) {
     selection,
   );
 
-  // Compute items consumed per tick for consuming actions
-  final inputs = action.inputsForRecipe(selection);
+  // Compute items consumed per tick for consuming actions, applying
+  // rune cost reduction for runecrafting.
+  final inputs = state.effectiveInputs(action);
   final itemsConsumedPerTick = <MelvorId, double>{};
   for (final entry in inputs.entries) {
     itemsConsumedPerTick[entry.key] = entry.value / expectedTicks;

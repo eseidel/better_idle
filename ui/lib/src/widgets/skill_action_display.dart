@@ -183,7 +183,7 @@ class SkillActionDisplay extends StatelessWidget {
     final isActive = state.isActionActive(action);
     final canStart = state.canStartAction(action);
 
-    final inputs = action.inputsForRecipe(selection);
+    final inputs = state.effectiveInputs(action);
     final outputs = state.displayOutputs(action);
     final modifiedSeconds = state.displayDurationSeconds(action).round();
 

@@ -917,7 +917,19 @@ bool completeAction(
 
   if (!preserved) {
     // Consume required items (using selected recipe if applicable)
-    final inputs = action.inputsForRecipe(selection);
+    var inputs = action.inputsForRecipe(selection);
+    // Apply rune cost reduction for runecrafting equipment actions.
+    if (action is RunecraftingAction) {
+      final reduction = modifierProvider.runecraftingRuneCostReduction(
+        skillId: action.skill.id,
+        actionId: action.id.localId,
+        categoryId: action.categoryId,
+      );
+      inputs = registries.runecrafting.applyRuneCostReduction(
+        inputs,
+        reduction,
+      );
+    }
     for (final requirement in inputs.entries) {
       final item = registries.items.byId(requirement.key);
       builder.removeInventory(ItemStack(item, count: requirement.value));

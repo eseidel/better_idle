@@ -159,6 +159,7 @@ class Registries {
        runecrafting = RunecraftingRegistry(
          actions: const [],
          categories: const [],
+         runeItemIds: const {},
        ),
        thieving = ThievingRegistry(actions: const [], areas: const []),
        farming =

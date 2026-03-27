@@ -1055,13 +1055,36 @@ class GlobalState {
   /// Returns true if there is loot waiting to be collected.
   bool get hasLoot => loot.isNotEmpty;
 
+  /// Returns the effective inputs for a skill action, applying any cost
+  /// reduction modifiers (e.g., runecraftingRuneCostReduction).
+  Map<MelvorId, int> effectiveInputs(SkillAction action) {
+    final actionStateVal = actionState(action.id);
+    final selection = actionStateVal.recipeSelection(action);
+    var inputs = action.inputsForRecipe(selection);
+    if (action is RunecraftingAction) {
+      final modifiers = createActionModifierProvider(
+        action,
+        conditionContext: ConditionContext.empty,
+        consumesOnType: null,
+      );
+      final reduction = modifiers.runecraftingRuneCostReduction(
+        skillId: action.skill.id,
+        actionId: action.id.localId,
+        categoryId: action.categoryId,
+      );
+      inputs = registries.runecrafting.applyRuneCostReduction(
+        inputs,
+        reduction,
+      );
+    }
+    return inputs;
+  }
+
   /// Returns true if all required inputs for the action are available.
   bool canStartAction(Action action) {
     // Only SkillActions have inputs to check
     if (action is SkillAction) {
-      final actionStateVal = actionState(action.id);
-      final selection = actionStateVal.recipeSelection(action);
-      final inputs = action.inputsForRecipe(selection);
+      final inputs = effectiveInputs(action);
 
       // Check inputs
       for (final requirement in inputs.entries) {

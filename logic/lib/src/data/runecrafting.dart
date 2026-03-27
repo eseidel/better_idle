@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -113,14 +115,17 @@ class RunecraftingRegistry {
   RunecraftingRegistry({
     required List<RunecraftingAction> actions,
     required List<RunecraftingCategory> categories,
+    required Set<MelvorId> runeItemIds,
   }) : _actions = actions,
-       _categories = categories {
+       _categories = categories,
+       _runeItemIds = runeItemIds {
     _byId = {for (final a in _actions) a.id.localId: a};
     _categoryById = {for (final c in _categories) c.id: c};
   }
 
   final List<RunecraftingAction> _actions;
   final List<RunecraftingCategory> _categories;
+  final Set<MelvorId> _runeItemIds;
   late final Map<MelvorId, RunecraftingAction> _byId;
   late final Map<MelvorId, RunecraftingCategory> _categoryById;
 
@@ -135,4 +140,29 @@ class RunecraftingRegistry {
 
   /// Returns a runecrafting category by ID, or null if not found.
   RunecraftingCategory? categoryById(MelvorId id) => _categoryById[id];
+
+  /// Returns true if the given item ID is a rune (elemental or combination).
+  bool isRune(MelvorId itemId) => _runeItemIds.contains(itemId);
+
+  /// Applies rune cost reduction to a set of inputs.
+  ///
+  /// [reductionPercent] is the total percentage reduction (e.g., 45 = 45%).
+  /// Only items that are runes have their costs reduced.
+  /// Each rune cost is reduced to `max(1, floor(cost * (1 - pct/100)))`.
+  Map<MelvorId, int> applyRuneCostReduction(
+    Map<MelvorId, int> inputs,
+    int reductionPercent,
+  ) {
+    if (reductionPercent <= 0) return inputs;
+    final result = <MelvorId, int>{};
+    for (final entry in inputs.entries) {
+      if (isRune(entry.key)) {
+        final reduced = (entry.value * (1 - reductionPercent / 100)).floor();
+        result[entry.key] = math.max(1, reduced);
+      } else {
+        result[entry.key] = entry.value;
+      }
+    }
+    return result;
+  }
 }

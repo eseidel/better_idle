@@ -39,16 +39,21 @@ class MasteryLevelBonus {
     this.levelScalingSlope,
     this.levelScalingMax,
     this.autoScopeToAction = true,
+    this.filterCategoryIds,
   });
 
   factory MasteryLevelBonus.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
+    Map<String, Set<MelvorId>> filterMap = const {},
   }) {
     final modifiersJson = json['modifiers'] as Map<String, dynamic>?;
     final modifiers = modifiersJson != null
         ? ModifierDataSet.fromJson(modifiersJson, namespace: namespace)
         : const ModifierDataSet([]);
+
+    final filter = json['filter'] as String?;
+    final filterCategoryIds = filter != null ? filterMap[filter] : null;
 
     return MasteryLevelBonus(
       modifiers: modifiers,
@@ -56,6 +61,7 @@ class MasteryLevelBonus {
       levelScalingSlope: json['levelScalingSlope'] as int?,
       levelScalingMax: json['levelScalingMax'] as int?,
       autoScopeToAction: json['autoScopeToAction'] as bool? ?? true,
+      filterCategoryIds: filterCategoryIds,
     );
   }
 
@@ -74,6 +80,18 @@ class MasteryLevelBonus {
   /// If true (default), actionID-only scopes are template placeholders.
   /// If false, modifiers apply as-is without substitution.
   final bool autoScopeToAction;
+
+  /// If non-null, this bonus only applies to actions in these categories.
+  /// Parsed from the JSON `filter` field (e.g., "Rune" or "Equipment" in
+  /// Runecrafting).
+  final Set<MelvorId>? filterCategoryIds;
+
+  /// Returns true if this bonus applies to the given category.
+  bool matchesCategory(MelvorId? categoryId) {
+    if (filterCategoryIds == null) return true;
+    if (categoryId == null) return false;
+    return filterCategoryIds!.contains(categoryId);
+  }
 
   /// Returns how many times this bonus applies at the given mastery level.
   ///
@@ -123,9 +141,14 @@ class MasteryBonusRegistry {
 }
 
 /// Parses masteryLevelBonuses from a skill's data entry.
+///
+/// [filterMap] maps filter names (e.g., "Rune", "Equipment") to sets of
+/// category IDs that the filter matches. Bonuses with a filter will only
+/// apply to actions in those categories.
 List<MasteryLevelBonus> parseMasteryLevelBonuses(
   Map<String, dynamic> skillData, {
   required String namespace,
+  Map<String, Set<MelvorId>> filterMap = const {},
 }) {
   final bonusesJson = skillData['masteryLevelBonuses'] as List<dynamic>?;
   if (bonusesJson == null) return [];
@@ -135,6 +158,7 @@ List<MasteryLevelBonus> parseMasteryLevelBonuses(
         (json) => MasteryLevelBonus.fromJson(
           json as Map<String, dynamic>,
           namespace: namespace,
+          filterMap: filterMap,
         ),
       )
       .toList();

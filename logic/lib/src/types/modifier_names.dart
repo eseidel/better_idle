@@ -462,8 +462,16 @@ mixin ModifierAccessors {
       getModifier('runePreservationChance').toInt();
   int get runecraftingBaseXPForRunes =>
       getModifier('runecraftingBaseXPForRunes').toInt();
-  int runecraftingRuneCostReduction({required MelvorId? actionId}) =>
-      getModifier('runecraftingRuneCostReduction', actionId: actionId).toInt();
+  int runecraftingRuneCostReduction({
+    required MelvorId? skillId,
+    required MelvorId? actionId,
+    required MelvorId? categoryId,
+  }) => getModifier(
+    'runecraftingRuneCostReduction',
+    skillId: skillId,
+    actionId: actionId,
+    categoryId: categoryId,
+  ).toInt();
   int get seedDropConversionChance =>
       getModifier('seedDropConversionChance').toInt();
   double skillInterval({
