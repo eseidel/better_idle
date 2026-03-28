@@ -274,6 +274,10 @@ class ThievingRegistry {
   ThievingRegistry({
     required List<ThievingAction> actions,
     required List<ThievingArea> areas,
+    this.herbSackItemId,
+    this.farmerNpcIds = const [],
+    this.minerNpcIds = const [],
+    this.barItemIds = const [],
   }) : _actions = actions,
        _areas = areas {
     _byId = {for (final a in _actions) a.id.localId: a};
@@ -283,6 +287,18 @@ class ThievingRegistry {
   final List<ThievingArea> _areas;
   late final Map<MelvorId, ThievingAction> _byId;
 
+  /// Item ID for the Herb Sack (dropped by Farmer NPCs with modifier).
+  final MelvorId? herbSackItemId;
+
+  /// NPC local IDs considered "Farmer" for the herb sack modifier.
+  final List<MelvorId> farmerNpcIds;
+
+  /// NPC local IDs considered "Miner" for the random bar modifier.
+  final List<MelvorId> minerNpcIds;
+
+  /// Item IDs of bars that can drop from Miner NPCs with modifier.
+  final List<MelvorId> barItemIds;
+
   /// All thieving actions (NPCs).
   List<ThievingAction> get actions => _actions;
 
@@ -291,4 +307,10 @@ class ThievingRegistry {
 
   /// Look up a thieving action by its local ID.
   ThievingAction? byId(MelvorId localId) => _byId[localId];
+
+  /// Whether the given NPC is a Farmer for the herb sack modifier.
+  bool isFarmerNpc(MelvorId npcLocalId) => farmerNpcIds.contains(npcLocalId);
+
+  /// Whether the given NPC is a Miner for the random bar modifier.
+  bool isMinerNpc(MelvorId npcLocalId) => minerNpcIds.contains(npcLocalId);
 }

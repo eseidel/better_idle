@@ -655,6 +655,92 @@ bool rollAndCollectDrops(
   return allItemsAdded;
 }
 
+/// Rolls and collects drops for a thieving action, applying thieving-specific
+/// modifiers: area unique chance bonus, farmer herb sack, miner random bar,
+/// and auto-sell price.
+void rollAndCollectThievingDrops(
+  StateUpdateBuilder builder,
+  ThievingAction action,
+  ModifierAccessors modifiers,
+  Random random,
+  RecipeSelection selection,
+) {
+  // Standard drop rolling (includes area drops, NPC unique, loot table, etc.)
+  rollAndCollectDrops(builder, action, modifiers, random, selection);
+
+  final registries = builder.registries;
+  final thievingReg = registries.thieving;
+
+  // thievingAreaUniqueChancePercent: additional flat % chance for area unique.
+  final areaUniqueBonus = modifiers.thievingAreaUniqueChancePercent;
+  if (areaUniqueBonus > 0) {
+    for (final drop in action.area.uniqueDrops) {
+      // The base rate was already rolled in rollAndCollectDrops.
+      // Roll the bonus chance separately (additive flat percentage).
+      final bonusRate = areaUniqueBonus / 100.0;
+      if (random.nextDouble() < bonusRate) {
+        final itemStack = drop.toItemStack(registries.items);
+        builder.addInventory(itemStack);
+      }
+    }
+  }
+
+  // thievingFarmerHerbSackChance: chance for Herb Sack from farmer NPCs.
+  final herbSackChance = modifiers.thievingFarmerHerbSackChance;
+  if (herbSackChance > 0 && thievingReg.isFarmerNpc(action.id.localId)) {
+    final herbSackId = thievingReg.herbSackItemId;
+    if (herbSackId != null && random.nextDouble() < herbSackChance / 100.0) {
+      final item = registries.items.maybeById(herbSackId);
+      if (item != null) {
+        builder.addInventory(ItemStack(item, count: 1));
+      }
+    }
+  }
+
+  // thievingMinerRandomBarChance: chance for a random bar from miner NPCs.
+  final minerBarChance = modifiers.thievingMinerRandomBarChance;
+  if (minerBarChance > 0 && thievingReg.isMinerNpc(action.id.localId)) {
+    final barIds = thievingReg.barItemIds;
+    if (barIds.isNotEmpty && random.nextDouble() < minerBarChance / 100.0) {
+      final barId = barIds[random.nextInt(barIds.length)];
+      final item = registries.items.maybeById(barId);
+      if (item != null) {
+        builder.addInventory(ItemStack(item, count: 1));
+      }
+    }
+  }
+
+  // thievingAutoSellPrice: auto-sell loot table drops for bonus gold.
+  final autoSellBonus = modifiers.thievingAutoSellPrice;
+  if (autoSellBonus > 0) {
+    _autoSellThievingDrops(builder, action, random, autoSellBonus);
+  }
+}
+
+/// Auto-sells thieved item drops for gold based on their sell price.
+/// The modifier value is a percentage bonus on top of the base sell price.
+void _autoSellThievingDrops(
+  StateUpdateBuilder builder,
+  ThievingAction action,
+  Random random,
+  int autoSellPercent,
+) {
+  final dropTable = action.dropTable;
+  if (dropTable == null) return;
+  final registries = builder.registries;
+  final itemStack = dropTable.roll(registries.items, random);
+  if (itemStack != null) {
+    final sellPrice = itemStack.item.sellsFor * itemStack.count;
+    final bonusGold = (sellPrice * autoSellPercent / 100.0).round().clamp(
+      0,
+      sellPrice * 10,
+    );
+    if (bonusGold > 0) {
+      builder.addCurrency(Currency.gp, bonusGold);
+    }
+  }
+}
+
 /// Completes a thieving action with success/fail mechanics.
 /// On success: grants XP, 1-maxGold GP, and rolls for drops.
 /// On failure: deals 1-maxHit damage and stuns the player.
@@ -689,25 +775,46 @@ bool completeThievingAction(
       ..addActionMasteryXp(action.id, perAction.masteryXp)
       ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp);
 
-    // Grant gold with currencyGain modifier
+    // Grant gold with currencyGain + flatThievingCurrencyGain +
+    // minThievingCurrencyGain modifiers.
     final baseGold = action.rollGold(random);
     final currencyGainMod = modifierProvider.currencyGain(
       skillId: action.skill.id,
       actionId: action.id.localId,
     );
-    final adjustedGold = (baseGold * (1.0 + currencyGainMod / 100.0))
-        .round()
-        .clamp(1, baseGold * 10);
-    builder.addCurrency(Currency.gp, adjustedGold);
+    final flatBonus = modifierProvider.flatThievingCurrencyGain;
+    final minGain = modifierProvider.minThievingCurrencyGain;
+    var goldGain =
+        (baseGold * (1.0 + currencyGainMod / 100.0)).round() + flatBonus;
+    // Apply minimum floor (overrides any other cap).
+    if (goldGain < minGain) goldGain = minGain;
+    // Ensure at least 1 gold.
+    if (goldGain < 1) goldGain = 1;
+    builder.addCurrency(Currency.gp, goldGain);
 
-    // Roll drops with doubling applied
+    // Roll drops with thieving-specific modifiers applied.
     final actionState = builder.state.actionState(action.id);
     final selection = actionState.recipeSelection(action);
-    rollAndCollectDrops(builder, action, modifierProvider, random, selection);
+    rollAndCollectThievingDrops(
+      builder,
+      action,
+      modifierProvider,
+      random,
+      selection,
+    );
 
     return true;
   } else {
-    // Thieving failed - deal damage
+    // Thieving failed - check ignoreThievingDamage modifier.
+    final ignoreDamage = modifierProvider.ignoreThievingDamage(
+      actionId: action.id.localId,
+    );
+    if (ignoreDamage > 0) {
+      // Damage is ignored but no rewards are granted.
+      return true;
+    }
+
+    // Deal damage
     final damage = action.rollDamage(random);
     builder.damagePlayer(damage);
 

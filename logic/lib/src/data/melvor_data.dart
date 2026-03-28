@@ -852,8 +852,63 @@ ThievingRegistry parseThieving(List<SkillDataEntry>? entries) {
     }
   }
 
-  return ThievingRegistry(actions: actions, areas: areas);
+  // Parse herb sack item ID and NPC role data.
+  MelvorId? herbSackItemId;
+  final farmerNpcIds = <MelvorId>[];
+  final minerNpcIds = <MelvorId>[];
+  for (final entry in entries) {
+    // bearLeprechaunItem is the Herb Sack item ID in Melvor data.
+    final herbSackJson = entry.data['bearLeprechaunItem'] as String?;
+    if (herbSackJson != null) {
+      herbSackItemId = MelvorId.fromJsonWithNamespace(
+        herbSackJson,
+        defaultNamespace: entry.namespace,
+      );
+    }
+
+    // Identify Farmer and Miner NPCs by name convention.
+    final npcs = entry.data['npcs'] as List<dynamic>?;
+    if (npcs != null) {
+      for (final npcJson in npcs) {
+        final npcMap = npcJson as Map<String, dynamic>;
+        final name = npcMap['name'] as String;
+        final npcId = MelvorId.fromJsonWithNamespace(
+          npcMap['id'] as String,
+          defaultNamespace: entry.namespace,
+        );
+        if (name.toLowerCase().contains('farmer')) {
+          farmerNpcIds.add(npcId);
+        }
+        if (name.toLowerCase() == 'miner') {
+          minerNpcIds.add(npcId);
+        }
+      }
+    }
+  }
+
+  return ThievingRegistry(
+    actions: actions,
+    areas: areas,
+    herbSackItemId: herbSackItemId,
+    farmerNpcIds: farmerNpcIds,
+    minerNpcIds: minerNpcIds,
+    barItemIds: _defaultBarItemIds,
+  );
 }
+
+/// Well-known bar item IDs used for the Miner random bar thieving modifier.
+/// These are the standard smelting bars available in Melvor Idle.
+const _defaultBarItemIds = [
+  MelvorId('melvorD:Bronze_Bar'),
+  MelvorId('melvorD:Iron_Bar'),
+  MelvorId('melvorD:Steel_Bar'),
+  MelvorId('melvorD:Gold_Bar'),
+  MelvorId('melvorD:Mithril_Bar'),
+  MelvorId('melvorD:Adamantite_Bar'),
+  MelvorId('melvorD:Runite_Bar'),
+  MelvorId('melvorD:Dragonite_Bar'),
+  MelvorId('melvorD:Silver_Bar'),
+];
 
 List<CombatAction> parseCombatActions(
   Map<String, dynamic> json, {
