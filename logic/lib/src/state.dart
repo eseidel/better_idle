@@ -4084,23 +4084,38 @@ class GlobalState {
   static const int bonfireLogCost = 10;
 
   GlobalState startBonfire(FiremakingAction action) {
-    // Check that we have enough logs
+    final modifiers = createActionModifierProvider(
+      action,
+      conditionContext: ConditionContext.empty,
+      consumesOnType: null,
+    );
+    // freeBonfires comes from potions, so pass skillId explicitly.
+    final isFree =
+        modifiers.getModifier('freeBonfires', skillId: Skill.firemaking.id) > 0;
     final logItem = registries.items.byId(action.logId);
-    final logCount = inventory.countOfItem(logItem);
-    if (logCount < bonfireLogCost) {
-      throw Exception(
-        'Cannot start bonfire: need $bonfireLogCost ${action.logId.name}, '
-        'have $logCount',
-      );
+
+    if (!isFree) {
+      final logCount = inventory.countOfItem(logItem);
+      if (logCount < bonfireLogCost) {
+        throw Exception(
+          'Cannot start bonfire: need $bonfireLogCost '
+          '${action.logId.name}, have $logCount',
+        );
+      }
     }
 
-    // Consume logs
-    final newInventory = inventory.removing(
-      ItemStack(logItem, count: bonfireLogCost),
-    );
+    final newInventory = isFree
+        ? inventory
+        : inventory.removing(ItemStack(logItem, count: bonfireLogCost));
 
-    // Start the bonfire
-    final bonfireTicks = ticksFromDuration(action.bonfireInterval);
+    // firemakingBonfireInterval: percentage modifier on bonfire duration.
+    final intervalMod = modifiers
+        .getModifier('firemakingBonfireInterval', skillId: Skill.firemaking.id)
+        .toInt();
+    final baseTicks = ticksFromDuration(action.bonfireInterval);
+    final bonfireTicks = (baseTicks * (1.0 + intervalMod / 100.0))
+        .round()
+        .clamp(1, baseTicks * 10);
     final newBonfire = BonfireState(
       actionId: action.id,
       ticksRemaining: bonfireTicks,

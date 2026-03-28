@@ -538,7 +538,13 @@ bool rollAndCollectDrops(
   final registries = builder.registries;
   var allItemsAdded = true;
 
-  final doublingChance = action.doublingChance(modifiers);
+  var doublingChance = action.doublingChance(modifiers);
+
+  // halveWoodcuttingDoubleChance: halves doubling for woodcutting.
+  if (action.skill == Skill.woodcutting &&
+      modifiers.halveWoodcuttingDoubleChance > 0) {
+    doublingChance /= 2.0;
+  }
 
   // Compute flat bonus to primary product quantity from mastery/modifiers.
   final flatProductBonus = modifiers
@@ -939,6 +945,29 @@ bool completeAction(
     ..consumeSummonChargesForSkill(action)
     ..consumePotionCharge(action, random);
 
+  // woodcuttingXPAddedAsFiremakingXP: percentage of WC XP as FM XP.
+  if (action.skill == Skill.woodcutting) {
+    final wcToFmPct = modifierProvider.woodcuttingXPAddedAsFiremakingXP;
+    if (wcToFmPct > 0) {
+      final fmXp = (perAction.xp * wcToFmPct / 100.0).round();
+      if (fmXp > 0) {
+        builder.addSkillXp(Skill.firemaking, fmXp);
+      }
+    }
+  }
+
+  // firemakingLogCurrencyGain: grant GP from burning logs.
+  if (action is FiremakingAction) {
+    final pct = modifierProvider.firemakingLogCurrencyGain;
+    if (pct > 0) {
+      final logItem = registries.items.byId(action.logId);
+      final gpGained = (logItem.sellsFor * pct / 100.0).round();
+      if (gpGained > 0) {
+        builder.addCurrency(Currency.gp, gpGained);
+      }
+    }
+  }
+
   // Roll for summoning mark discovery
   _rollMarkDiscovery(builder, action, random);
 
@@ -1068,7 +1097,12 @@ void _completeSecondaryWoodcutting(
   );
   final actionState = builder.state.actionState(secondaryAction.id);
   final selection = actionState.recipeSelection(secondaryAction);
-  final doublingChance = secondaryAction.doublingChance(modifiers);
+  var doublingChance = secondaryAction.doublingChance(modifiers);
+
+  // halveWoodcuttingDoubleChance: halves doubling for woodcutting.
+  if (modifiers.halveWoodcuttingDoubleChance > 0) {
+    doublingChance /= 2.0;
+  }
 
   for (final drop in builder.registries.drops.allDropsForAction(
     secondaryAction,
@@ -1117,13 +1151,23 @@ void _completeSecondaryWoodcutting(
 
   // Grant scaled XP and mastery
   final perAction = xpPerAction(builder.state, secondaryAction, modifiers);
+  final scaledXp = perAction.xp * mAction;
   builder
-    ..addSkillXp(secondaryAction.skill, perAction.xp * mAction)
+    ..addSkillXp(secondaryAction.skill, scaledXp)
     ..addActionMasteryXp(secondaryAction.id, perAction.masteryXp * mAction)
     ..addSkillMasteryXp(
       secondaryAction.skill,
       perAction.masteryPoolXp * mAction,
     );
+
+  // woodcuttingXPAddedAsFiremakingXP: percentage of WC XP as FM XP.
+  final wcToFmPct = modifiers.woodcuttingXPAddedAsFiremakingXP;
+  if (wcToFmPct > 0) {
+    final fmXp = (scaledXp * wcToFmPct / 100.0).round();
+    if (fmXp > 0) {
+      builder.addSkillXp(Skill.firemaking, fmXp);
+    }
+  }
 
   // Roll for summoning mark discovery on secondary tree
   _rollMarkDiscovery(builder, secondaryAction, random);

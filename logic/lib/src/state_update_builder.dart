@@ -348,16 +348,37 @@ class StateUpdateBuilder {
   /// Restarts the current bonfire by consuming logs and resetting the timer.
   /// Returns true if restart was successful, false if not enough logs.
   bool restartBonfire(FiremakingAction bonfireAction) {
+    final modifiers = _state.createActionModifierProvider(
+      bonfireAction,
+      conditionContext: ConditionContext.empty,
+      consumesOnType: null,
+    );
+    // freeBonfires comes from potions, so pass skillId explicitly.
+    final isFree =
+        modifiers.getModifier('freeBonfires', skillId: Skill.firemaking.id) > 0;
     final logItem = registries.items.byId(bonfireAction.logId);
-    final logCount = _state.inventory.countOfItem(logItem);
-    if (logCount < GlobalState.bonfireLogCost) return false;
 
-    // Consume logs and reset bonfire timer
-    final bonfireTicks = ticksFromDuration(bonfireAction.bonfireInterval);
+    if (!isFree) {
+      final logCount = _state.inventory.countOfItem(logItem);
+      if (logCount < GlobalState.bonfireLogCost) return false;
+    }
+
+    // firemakingBonfireInterval: percentage modifier on bonfire duration.
+    final intervalMod = modifiers
+        .getModifier('firemakingBonfireInterval', skillId: Skill.firemaking.id)
+        .toInt();
+    final baseTicks = ticksFromDuration(bonfireAction.bonfireInterval);
+    final bonfireTicks = (baseTicks * (1.0 + intervalMod / 100.0))
+        .round()
+        .clamp(1, baseTicks * 10);
+
+    final newInventory = isFree
+        ? _state.inventory
+        : _state.inventory.removing(
+            ItemStack(logItem, count: GlobalState.bonfireLogCost),
+          );
     _state = _state.copyWith(
-      inventory: _state.inventory.removing(
-        ItemStack(logItem, count: GlobalState.bonfireLogCost),
-      ),
+      inventory: newInventory,
       bonfire: BonfireState(
         actionId: bonfireAction.id,
         ticksRemaining: bonfireTicks,
