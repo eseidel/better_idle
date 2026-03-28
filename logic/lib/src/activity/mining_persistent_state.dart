@@ -81,9 +81,12 @@ class MiningState {
   final Tick hpRegenTicksRemaining;
 
   /// Gets the current HP of a mining rock.
-  int currentHp(MiningAction action, int masteryXp) {
+  int currentHp(MiningAction action, int masteryXp, {int flatNodeHPBonus = 0}) {
     final masteryLevel = levelForXp(masteryXp).clamp(1, 99);
-    final maxHp = action.maxHpForMasteryLevel(masteryLevel);
+    final maxHp = action.maxHpForMasteryLevel(
+      masteryLevel,
+      flatNodeHPBonus: flatNodeHPBonus,
+    );
     return max(0, maxHp - totalHpLost);
   }
 

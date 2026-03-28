@@ -443,14 +443,23 @@ class StateUpdateBuilder {
   }
 
   /// Depletes a mining node and starts its respawn timer.
+  ///
+  /// [respawnIntervalModifier] is a percentage modifier from
+  /// `miningNodeRespawnInterval` (e.g., -10 = 10% faster respawn).
   void depleteResourceNode(
     ActionId actionId,
     MiningAction action,
-    int totalHpLost,
-  ) {
+    int totalHpLost, {
+    int respawnIntervalModifier = 0,
+  }) {
+    var respawnTicks = action.respawnTicks;
+    if (respawnIntervalModifier != 0) {
+      final multiplier = 1.0 + respawnIntervalModifier / 100.0;
+      respawnTicks = (respawnTicks * multiplier).round().clamp(1, respawnTicks);
+    }
     final newMining = MiningState(
       totalHpLost: totalHpLost,
-      respawnTicksRemaining: action.respawnTicks,
+      respawnTicksRemaining: respawnTicks,
     );
     updateMiningState(actionId, newMining);
   }
