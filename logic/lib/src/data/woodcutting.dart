@@ -75,6 +75,9 @@ class WoodcuttingRegistry {
   /// Look up a woodcutting action by its local ID.
   WoodcuttingTree? byId(MelvorId localId) => _actionMap[localId];
 
+  /// Returns true if [itemId] is a log product from any woodcutting tree.
+  bool isLog(MelvorId itemId) => actions.any((a) => a.productId == itemId);
+
   /// Create a cached version for faster lookups.
   WoodcuttingRegistry withCache() {
     if (_byId != null) return this;
