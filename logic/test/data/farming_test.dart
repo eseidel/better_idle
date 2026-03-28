@@ -442,7 +442,7 @@ void main() {
       );
 
       // Apply the item to the plot
-      state = state.applyCompost(plotId, weirdGloop);
+      state = state.applyCompost(plotId, weirdGloop, Random(0));
 
       // Verify both compost and harvest bonus were stored
       final plotState = state.plotStates[plotId]!;
@@ -518,7 +518,7 @@ void main() {
       );
 
       // Apply compost to empty plot (no seed planted)
-      state = state.applyCompost(plotId, compost);
+      state = state.applyCompost(plotId, compost, Random(0));
 
       // Verify compost was applied
       expect(state.plotStates[plotId]!.compostApplied, 30);
@@ -723,6 +723,7 @@ void main() {
         allotmentCrop,
         null,
         0,
+        Random(0),
       );
       expect(result, isNotNull);
 
@@ -754,6 +755,7 @@ void main() {
         allotmentCrop,
         null,
         0,
+        Random(0),
       );
       expect(result, isNull);
     });
@@ -776,6 +778,7 @@ void main() {
         allotmentCrop,
         null,
         0,
+        Random(0),
       );
       expect(result, isNull);
     });
@@ -796,6 +799,7 @@ void main() {
         allotmentCrop,
         null,
         0,
+        Random(0),
       );
       expect(result, isNotNull);
 
@@ -825,6 +829,7 @@ void main() {
         allotmentCrop,
         compost,
         5,
+        Random(0),
       );
       expect(result, isNotNull);
 
@@ -859,6 +864,7 @@ void main() {
         allotmentCrop,
         compost,
         5,
+        Random(0),
       );
       expect(result, isNotNull);
 

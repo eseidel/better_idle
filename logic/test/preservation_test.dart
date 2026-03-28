@@ -252,7 +252,7 @@ void main() {
         unlockedPlots: {plotId},
       );
 
-      state = state.applyCompost(plotId, normalCompost);
+      state = state.applyCompost(plotId, normalCompost, Random(0));
 
       // Compost should be consumed
       expect(state.inventory.countOfItem(normalCompost), 4);
@@ -281,11 +281,7 @@ void main() {
         );
 
         final random = Random(i);
-        final newState = state.applyCompost(
-          plotId,
-          normalCompost,
-          random: random,
-        );
+        final newState = state.applyCompost(plotId, normalCompost, random);
 
         if (newState.inventory.countOfItem(normalCompost) == 5) {
           preserved++;
@@ -302,22 +298,6 @@ void main() {
       // the modifier is active).
       expect(consumed, iterations);
       expect(preserved, 0);
-    });
-
-    test('compost always consumed without random parameter', () {
-      final plotId = testRegistries.farming.plots.first.id;
-      var state = GlobalState.test(
-        testRegistries,
-        inventory: Inventory.fromItems(testRegistries.items, [
-          ItemStack(normalCompost, count: 5),
-        ]),
-        unlockedPlots: {plotId},
-      );
-
-      // No random parameter
-      state = state.applyCompost(plotId, normalCompost);
-
-      expect(state.inventory.countOfItem(normalCompost), 4);
     });
   });
 }

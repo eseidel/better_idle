@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:logic/logic.dart';
 import 'package:test/test.dart';
 
@@ -26,7 +28,7 @@ void main() {
       );
 
       // Should succeed on empty plot
-      updatedState = updatedState.applyCompost(plotId, compost);
+      updatedState = updatedState.applyCompost(plotId, compost, Random(0));
 
       expect(updatedState.inventory.countOfItem(compost), 4);
       final plotState = updatedState.plotStates[plotId]!;
@@ -68,7 +70,7 @@ void main() {
 
       // Try to apply compost to growing crop - should fail
       expect(
-        () => updatedState.applyCompost(plotId, compost),
+        () => updatedState.applyCompost(plotId, compost, Random(0)),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -108,11 +110,11 @@ void main() {
       );
 
       // Apply compost first
-      updatedState = updatedState.applyCompost(plotId, compost);
+      updatedState = updatedState.applyCompost(plotId, compost, Random(0));
       expect(updatedState.plotStates[plotId]!.compostApplied, 10);
 
       // Apply more compost
-      updatedState = updatedState.applyCompost(plotId, compost);
+      updatedState = updatedState.applyCompost(plotId, compost, Random(1));
       expect(updatedState.plotStates[plotId]!.compostApplied, 20);
 
       // Plant crop - compost should be preserved
@@ -140,25 +142,45 @@ void main() {
       );
 
       // Apply normal compost (10 value)
-      updatedState = updatedState.applyCompost(plotId, normalCompost);
+      updatedState = updatedState.applyCompost(
+        plotId,
+        normalCompost,
+        Random(0),
+      );
       expect(updatedState.plotStates[plotId]!.compostApplied, 10);
 
       // Apply more normal compost
-      updatedState = updatedState.applyCompost(plotId, normalCompost);
+      updatedState = updatedState.applyCompost(
+        plotId,
+        normalCompost,
+        Random(1),
+      );
       expect(updatedState.plotStates[plotId]!.compostApplied, 20);
 
-      updatedState = updatedState.applyCompost(plotId, normalCompost);
+      updatedState = updatedState.applyCompost(
+        plotId,
+        normalCompost,
+        Random(2),
+      );
       expect(updatedState.plotStates[plotId]!.compostApplied, 30);
 
-      updatedState = updatedState.applyCompost(plotId, normalCompost);
+      updatedState = updatedState.applyCompost(
+        plotId,
+        normalCompost,
+        Random(3),
+      );
       expect(updatedState.plotStates[plotId]!.compostApplied, 40);
 
-      updatedState = updatedState.applyCompost(plotId, normalCompost);
+      updatedState = updatedState.applyCompost(
+        plotId,
+        normalCompost,
+        Random(4),
+      );
       expect(updatedState.plotStates[plotId]!.compostApplied, 50);
 
       // Cannot apply any more - at max (50)
       expect(
-        () => updatedState.applyCompost(plotId, normalCompost),
+        () => updatedState.applyCompost(plotId, normalCompost, Random(5)),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -170,7 +192,7 @@ void main() {
 
       // Strong compost (50 value) also can't be applied when already at 50
       expect(
-        () => updatedState.applyCompost(plotId, strongCompost),
+        () => updatedState.applyCompost(plotId, strongCompost, Random(6)),
         throwsA(
           isA<StateError>().having(
             (e) => e.message,
@@ -210,7 +232,7 @@ void main() {
       );
 
       // Apply compost and plant
-      updatedState = updatedState.applyCompost(plotId, compost);
+      updatedState = updatedState.applyCompost(plotId, compost, Random(0));
       updatedState = updatedState.plantCrop(plotId, crop);
 
       // Simulate growth completion - the compost should already be on the plot

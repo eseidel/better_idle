@@ -727,13 +727,18 @@ class PlantCropAction extends ReduxAction<GlobalState> {
 
 /// Applies compost to a growing crop.
 class ApplyCompostAction extends ReduxAction<GlobalState> {
-  ApplyCompostAction({required this.plotId, required this.compost});
+  ApplyCompostAction({
+    required this.plotId,
+    required this.compost,
+    Random? random,
+  }) : random = random ?? Random();
   final MelvorId plotId;
   final Item compost;
+  final Random random;
 
   @override
   GlobalState reduce() {
-    return state.applyCompost(plotId, compost);
+    return state.applyCompost(plotId, compost, random);
   }
 }
 
@@ -817,13 +822,7 @@ class PlantAllCropsAction extends ReduxAction<GlobalState> {
 
   @override
   GlobalState? reduce() {
-    return state.plantAllCrops(
-      categoryId,
-      crop,
-      compost,
-      compostCount,
-      random: random,
-    );
+    return state.plantAllCrops(categoryId, crop, compost, compostCount, random);
   }
 }
 
