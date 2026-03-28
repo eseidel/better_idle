@@ -2498,8 +2498,10 @@ class GlobalState {
     const tradingPostId = MelvorId('melvorF:Trading_Post');
     final tradingPostCount = township.totalBuildingCount(tradingPostId);
 
-    // Calculate costs with discount
-    final costs = trade.costsWithDiscount(tradingPostCount);
+    // Calculate costs with discount and trader cost modifier
+    final costs = _applyTraderCostModifier(
+      trade.costsWithDiscount(tradingPostCount),
+    );
 
     // Check if player has enough township resources
     for (final entry in costs.entries) {
@@ -2530,10 +2532,12 @@ class GlobalState {
 
     final trade = registries.township.tradeById(tradeId)!;
 
-    // Get Trading Post count for discount
+    // Get Trading Post count for discount and trader cost modifier
     const tradingPostId = MelvorId('melvorF:Trading_Post');
     final tradingPostCount = township.totalBuildingCount(tradingPostId);
-    final costs = trade.costsWithDiscount(tradingPostCount);
+    final costs = _applyTraderCostModifier(
+      trade.costsWithDiscount(tradingPostCount),
+    );
 
     // Deduct township resources
     var newTownship = township;
@@ -2677,8 +2681,10 @@ class GlobalState {
       throw StateError('${building.name} is already at full efficiency');
     }
 
-    // Get repair costs and deduct them
-    final repairCosts = township.repairCosts(biomeId, buildingId);
+    // Get repair costs with modifier applied and deduct them
+    final repairCosts = _applyRepairCostModifier(
+      township.repairCosts(biomeId, buildingId),
+    );
     var state = this;
     var newTownship = township;
 
@@ -2720,6 +2726,36 @@ class GlobalState {
     return state.copyWith(township: newTownship);
   }
 
+  /// Applies townshipRepairCost modifier to a cost map.
+  /// The modifier is a percentage (e.g., -10 = 10% cheaper).
+  Map<MelvorId, int> _applyRepairCostModifier(Map<MelvorId, int> costs) {
+    final modifiers = createGlobalModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final repairMod = modifiers.townshipRepairCost;
+    if (repairMod == 0) return costs;
+    final multiplier = 1.0 + (repairMod / 100.0);
+    return costs.map(
+      (key, value) =>
+          MapEntry(key, (value * multiplier).ceil().clamp(0, value)),
+    );
+  }
+
+  /// Applies townshipTraderCost modifier to a cost map.
+  /// The modifier is a percentage (e.g., -10 = 10% cheaper).
+  Map<MelvorId, int> _applyTraderCostModifier(Map<MelvorId, int> costs) {
+    final modifiers = createGlobalModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final traderMod = modifiers.townshipTraderCost;
+    if (traderMod == 0) return costs;
+    final multiplier = 1.0 + (traderMod / 100.0);
+    return costs.map(
+      (key, value) =>
+          MapEntry(key, (value * multiplier).ceil().clamp(0, value)),
+    );
+  }
+
   /// Returns true if the player can afford the given costs
   /// (GP + township resources).
   bool canAffordTownshipCosts(Map<MelvorId, int> costs) {
@@ -2735,7 +2771,9 @@ class GlobalState {
 
   /// Returns true if the player can afford all repair costs for a building.
   bool canAffordTownshipRepair(MelvorId biomeId, MelvorId buildingId) =>
-      canAffordTownshipCosts(township.repairCosts(biomeId, buildingId));
+      canAffordTownshipCosts(
+        _applyRepairCostModifier(township.repairCosts(biomeId, buildingId)),
+      );
 
   /// Returns true if the player can afford the building costs (ignoring level
   /// requirements). Returns false if building/biome data is invalid.
@@ -2751,8 +2789,9 @@ class GlobalState {
   }
 
   /// Returns true if the player can afford all repair costs for all buildings.
-  bool canAffordAllTownshipRepairs() =>
-      canAffordTownshipCosts(township.totalRepairCosts);
+  bool canAffordAllTownshipRepairs() => canAffordTownshipCosts(
+    _applyRepairCostModifier(township.totalRepairCosts),
+  );
 
   /// Repairs all Township buildings across all biomes, restoring efficiency
   /// to 100%. Throws if no buildings need repair or player can't afford costs.
@@ -2760,7 +2799,7 @@ class GlobalState {
     if (!township.hasAnyBuildingNeedingRepair) {
       throw StateError('No buildings need repair');
     }
-    final totalCosts = township.totalRepairCosts;
+    final totalCosts = _applyRepairCostModifier(township.totalRepairCosts);
     if (!canAffordTownshipCosts(totalCosts)) {
       throw StateError('Cannot afford repair costs');
     }

@@ -398,6 +398,30 @@ void _applyTownshipTicks(
 
   // Process town update timer
   final townshipLevel = builder.state.skillState(Skill.town).skillLevel;
+
+  // Build township modifiers from the global modifier provider.
+  final modifiers = builder.state.createGlobalModifierProvider(
+    conditionContext: ConditionContext.empty,
+  );
+  final resourceIds = registry.resources
+      .where((r) => !r.depositsToBank)
+      .map((r) => r.id);
+  final resourceProdMap = <MelvorId, int>{};
+  for (final id in resourceIds) {
+    final mod = modifiers.townshipResourceProduction(actionId: id);
+    if (mod != 0) resourceProdMap[id] = mod;
+  }
+  final townModifiers = TownshipModifiers(
+    gpProduction: modifiers.townshipGPProduction,
+    maxStorage: modifiers.townshipMaxStorage,
+    repairCost: modifiers.townshipRepairCost,
+    resourceProduction: resourceProdMap,
+    taxPerCitizen: modifiers.townshipTaxPerCitizen,
+    traderCost: modifiers.townshipTraderCost,
+    flatEducation: modifiers.flatTownshipEducation,
+    flatHappiness: modifiers.flatTownshipHappiness,
+  );
+
   while (remainingTicks > 0 && township.ticksUntilUpdate <= remainingTicks) {
     remainingTicks -= township.ticksUntilUpdate;
 
@@ -407,6 +431,7 @@ void _applyTownshipTicks(
       registry,
       random,
       townshipLevel: townshipLevel,
+      modifiers: townModifiers,
     );
     township = result.state.copyWith(ticksUntilUpdate: ticksPerHour);
 
