@@ -523,6 +523,72 @@ XpPerAction xpPerAction(
   );
 }
 
+/// Applies drop quantity modifiers to a single dropped item stack.
+///
+/// For primary products: applies percentage bonus, flat mastery bonus, flat
+/// additional bonus, and a chance-based +1. For non-primary drops: applies
+/// flat random product quantity bonus.
+///
+/// Returns the adjusted stack and the quantity to add to the running primary
+/// product total (used by additionalItemBasedOnPrimaryQuantity later).
+@visibleForTesting
+({ItemStack stack, int primaryQuantity}) applyDropQuantityModifiers({
+  required ItemStack itemStack,
+  required bool isPrimary,
+  required int basePrimaryPctBonus,
+  required int flatProductBonus,
+  required int flatAdditionalPrimary,
+  required double additionalPrimaryChance,
+  required ModifierAccessors modifiers,
+  required SkillAction action,
+  required MelvorId itemId,
+  required Random random,
+}) {
+  if (isPrimary) {
+    var qty = itemStack.count;
+
+    // Apply basePrimaryProductQuantity (% modifier to base quantity).
+    if (basePrimaryPctBonus > 0) {
+      qty = (qty * (1.0 + basePrimaryPctBonus / 100.0)).floor();
+    }
+
+    // Apply flat primary product quantity bonus from mastery.
+    if (flatProductBonus > 0) {
+      qty += flatProductBonus;
+    }
+
+    // Apply flatAdditionalPrimaryProductQuantity.
+    if (flatAdditionalPrimary > 0) {
+      qty += flatAdditionalPrimary;
+    }
+
+    // Apply additionalPrimaryProductChance (% chance for +1).
+    if (additionalPrimaryChance > 0 &&
+        random.nextDouble() < additionalPrimaryChance) {
+      qty += 1;
+    }
+
+    final stack = qty != itemStack.count
+        ? ItemStack(itemStack.item, count: qty)
+        : itemStack;
+    return (stack: stack, primaryQuantity: qty);
+  }
+
+  // Apply flatBaseRandomProductQuantity for non-primary drops.
+  final flatRandomBonus = modifiers.flatBaseRandomProductQuantity(
+    skillId: action.skill.id,
+    itemId: itemId,
+  );
+  if (flatRandomBonus > 0) {
+    final stack = ItemStack(
+      itemStack.item,
+      count: itemStack.count + flatRandomBonus,
+    );
+    return (stack: stack, primaryQuantity: 0);
+  }
+  return (stack: itemStack, primaryQuantity: 0);
+}
+
 /// Rolls all drops for an action and adds them to inventory.
 /// Applies skillItemDoublingChance from modifiers to double items.
 /// For Drop items, applies randomProductChance modifier bonus based on
@@ -624,47 +690,20 @@ bool rollAndCollectDrops(
       if (effectiveRate >= 1.0 || random.nextDouble() < effectiveRate) {
         itemStack = drop.toItemStack(registries.items);
 
-        if (isPrimary) {
-          var qty = itemStack.count;
-
-          // Apply basePrimaryProductQuantity (% modifier to base quantity).
-          if (basePrimaryPctBonus > 0) {
-            qty = (qty * (1.0 + basePrimaryPctBonus / 100.0)).floor();
-          }
-
-          // Apply flat primary product quantity bonus from mastery.
-          if (flatProductBonus > 0) {
-            qty += flatProductBonus;
-          }
-
-          // Apply flatAdditionalPrimaryProductQuantity.
-          if (flatAdditionalPrimary > 0) {
-            qty += flatAdditionalPrimary;
-          }
-
-          // Apply additionalPrimaryProductChance (% chance for +1).
-          if (additionalPrimaryChance > 0 &&
-              random.nextDouble() < additionalPrimaryChance) {
-            qty += 1;
-          }
-
-          if (qty != itemStack.count) {
-            itemStack = ItemStack(itemStack.item, count: qty);
-          }
-          totalPrimaryQuantity += qty;
-        } else {
-          // Apply flatBaseRandomProductQuantity for non-primary drops.
-          final flatRandomBonus = modifiers.flatBaseRandomProductQuantity(
-            skillId: action.skill.id,
-            itemId: drop.itemId,
-          );
-          if (flatRandomBonus > 0) {
-            itemStack = ItemStack(
-              itemStack.item,
-              count: itemStack.count + flatRandomBonus,
-            );
-          }
-        }
+        final (:stack, :primaryQuantity) = applyDropQuantityModifiers(
+          itemStack: itemStack,
+          isPrimary: isPrimary,
+          basePrimaryPctBonus: basePrimaryPctBonus,
+          flatProductBonus: flatProductBonus,
+          flatAdditionalPrimary: flatAdditionalPrimary,
+          additionalPrimaryChance: additionalPrimaryChance,
+          modifiers: modifiers,
+          action: action,
+          itemId: drop.itemId,
+          random: random,
+        );
+        itemStack = stack;
+        totalPrimaryQuantity += primaryQuantity;
       }
     } else if (drop is ThievingUniqueDrop) {
       // Compute actual player stealth for accurate NPC unique drop rate.

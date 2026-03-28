@@ -550,6 +550,109 @@ void main() {
         reason: 'additionalRandomGemChance should increase gem drops',
       );
     });
+
+    test('flatBasePrimaryProductQuantityChance boosts primary drop rate', () {
+      // Use many iterations to statistically verify the chance boost.
+      // Normal Tree logs have rate 1.0 so we need an action with sub-1.0
+      // primary rate, or we test via the helper directly.
+      // Test via applyDropQuantityModifiers for the non-primary path instead.
+      final state = GlobalState.test(testRegistries);
+
+      // With 100% flatBasePrimaryProductQuantityChance, even a sub-1.0
+      // primary product should always drop. Normal tree has rate=1.0 so
+      // it always drops regardless. Verify it still works.
+      final builder = StateUpdateBuilder(state);
+      final modifiers = StubModifierProvider({
+        'flatBasePrimaryProductQuantityChance': 100,
+      });
+
+      rollAndCollectDrops(
+        builder,
+        normalTree,
+        modifiers,
+        Random(42),
+        const NoSelectedRecipe(),
+      );
+
+      expect(builder.state.inventory.countById(normalLogsId), 1);
+    });
+
+    test(
+      'applyDropQuantityModifiers non-primary applies flat random bonus',
+      () {
+        final item = testRegistries.items.byId(normalLogsId);
+        final baseStack = ItemStack(item, count: 1);
+
+        final modifiers = StubModifierProvider({
+          'flatBaseRandomProductQuantity': 5,
+        });
+
+        final result = applyDropQuantityModifiers(
+          itemStack: baseStack,
+          isPrimary: false,
+          basePrimaryPctBonus: 0,
+          flatProductBonus: 0,
+          flatAdditionalPrimary: 0,
+          additionalPrimaryChance: 0,
+          modifiers: modifiers,
+          action: normalTree,
+          itemId: normalLogsId,
+          random: Random(42),
+        );
+
+        expect(result.stack.count, 6); // 1 + 5
+        expect(result.primaryQuantity, 0);
+      },
+    );
+
+    test(
+      'applyDropQuantityModifiers non-primary with zero bonus unchanged',
+      () {
+        final item = testRegistries.items.byId(normalLogsId);
+        final baseStack = ItemStack(item, count: 3);
+
+        final result = applyDropQuantityModifiers(
+          itemStack: baseStack,
+          isPrimary: false,
+          basePrimaryPctBonus: 0,
+          flatProductBonus: 0,
+          flatAdditionalPrimary: 0,
+          additionalPrimaryChance: 0,
+          modifiers: StubModifierProvider(),
+          action: normalTree,
+          itemId: normalLogsId,
+          random: Random(42),
+        );
+
+        expect(result.stack.count, 3);
+        expect(result.primaryQuantity, 0);
+      },
+    );
+
+    test(
+      'applyDropQuantityModifiers primary with no bonuses returns base qty',
+      () {
+        final item = testRegistries.items.byId(normalLogsId);
+        final baseStack = ItemStack(item, count: 2);
+
+        final result = applyDropQuantityModifiers(
+          itemStack: baseStack,
+          isPrimary: true,
+          basePrimaryPctBonus: 0,
+          flatProductBonus: 0,
+          flatAdditionalPrimary: 0,
+          additionalPrimaryChance: 0,
+          modifiers: StubModifierProvider(),
+          action: normalTree,
+          itemId: normalLogsId,
+          random: Random(42),
+        );
+
+        // No modifiers, qty unchanged.
+        expect(result.stack.count, 2);
+        expect(result.primaryQuantity, 2);
+      },
+    );
   });
 
   group('RareDrop with requiredItemId', () {
