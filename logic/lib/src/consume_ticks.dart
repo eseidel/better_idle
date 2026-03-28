@@ -952,11 +952,7 @@ bool completeAction(
 
   // woodcuttingXPAddedAsFiremakingXP: percentage of WC XP as FM XP.
   if (action.skill == Skill.woodcutting) {
-    _grantWoodcuttingBonusFiremakingXP(
-      builder,
-      modifierProvider,
-      perAction.xp,
-    );
+    _grantWoodcuttingBonusFiremakingXP(builder, modifierProvider, perAction.xp);
   }
 
   // firemakingLogCurrencyGain: grant GP from burning logs.

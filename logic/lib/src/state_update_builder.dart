@@ -353,26 +353,16 @@ class StateUpdateBuilder {
       conditionContext: ConditionContext.empty,
       consumesOnType: null,
     );
-    // freeBonfires comes from potions, so pass skillId explicitly.
-    final isFree =
-        modifiers.getModifier('freeBonfires', skillId: Skill.firemaking.id) > 0;
     final logItem = registries.items.byId(bonfireAction.logId);
 
-    if (!isFree) {
+    if (!modifiers.isBonfireFree) {
       final logCount = _state.inventory.countOfItem(logItem);
       if (logCount < GlobalState.bonfireLogCost) return false;
     }
 
-    // firemakingBonfireInterval: percentage modifier on bonfire duration.
-    final intervalMod = modifiers
-        .getModifier('firemakingBonfireInterval', skillId: Skill.firemaking.id)
-        .toInt();
-    final baseTicks = ticksFromDuration(bonfireAction.bonfireInterval);
-    final bonfireTicks = (baseTicks * (1.0 + intervalMod / 100.0))
-        .round()
-        .clamp(1, baseTicks * 10);
+    final ticks = bonfireDurationTicks(modifiers, bonfireAction);
 
-    final newInventory = isFree
+    final newInventory = modifiers.isBonfireFree
         ? _state.inventory
         : _state.inventory.removing(
             ItemStack(logItem, count: GlobalState.bonfireLogCost),
@@ -381,8 +371,8 @@ class StateUpdateBuilder {
       inventory: newInventory,
       bonfire: BonfireState(
         actionId: bonfireAction.id,
-        ticksRemaining: bonfireTicks,
-        totalTicks: bonfireTicks,
+        ticksRemaining: ticks,
+        totalTicks: ticks,
         xpBonus: bonfireAction.bonfireXPBonus,
       ),
     );

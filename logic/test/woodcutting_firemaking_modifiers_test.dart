@@ -249,4 +249,122 @@ void main() {
       expect(gp, 0, reason: 'No GP without firemakingLogCurrencyGain');
     });
   });
+
+  group('multi-tree secondary tree drops', () {
+    test('secondary tree produces logs in multi-tree mode', () {
+      final oakTree =
+          testRegistries.woodcuttingAction('Oak Tree') as WoodcuttingTree;
+      const normalLogsId = MelvorId('melvorD:Normal_Logs');
+
+      final random = Random(42);
+      var state = GlobalState.test(
+        testRegistries,
+        shop: const ShopState.empty().withPurchase(
+          MelvorId.fromJson('melvorD:Multi_Tree'),
+        ),
+      );
+      state = state.startMultiTreeWoodcutting(
+        oakTree,
+        testRegistries.woodcuttingAction('Normal Tree') as WoodcuttingTree,
+        random: random,
+      );
+
+      // Complete one multi-tree action to exercise secondary tree drops.
+      final builder = StateUpdateBuilder(state);
+      final oakTicks = ticksFromDuration(oakTree.maxDuration);
+      consumeTicks(builder, oakTicks, random: random);
+      state = builder.build();
+
+      // Both trees should produce logs.
+      final normalLogCount = state.inventory.countById(normalLogsId);
+      expect(normalLogCount, greaterThan(0));
+    });
+  });
+
+  group('multi-tree woodcuttingXPAddedAsFiremakingXP', () {
+    test('grants FM XP from secondary tree with Flaming Axe Scroll', () {
+      final flamingAxeScroll = testItems.byName('Flaming Axe Scroll');
+      final oakTree =
+          testRegistries.woodcuttingAction('Oak Tree') as WoodcuttingTree;
+
+      final random = Random(0);
+      var state = GlobalState.test(
+        testRegistries,
+        equipment: Equipment(
+          foodSlots: const [null, null, null],
+          selectedFoodSlot: 0,
+          gearSlots: {EquipmentSlot.consumable: flamingAxeScroll},
+        ),
+        shop: const ShopState.empty().withPurchase(
+          MelvorId.fromJson('melvorD:Multi_Tree'),
+        ),
+      );
+      state = state.startMultiTreeWoodcutting(
+        oakTree,
+        testRegistries.woodcuttingAction('Normal Tree') as WoodcuttingTree,
+        random: random,
+      );
+
+      final builder = StateUpdateBuilder(state);
+      // Run enough ticks for the primary tree to complete at least once.
+      final oakTicks = ticksFromDuration(oakTree.maxDuration);
+      consumeTicks(builder, oakTicks, random: random);
+      state = builder.build();
+
+      // Should have WC XP from both trees.
+      final wcXp = state.skillState(Skill.woodcutting).xp;
+      expect(wcXp, greaterThan(0));
+
+      // Should have FM XP from the modifier on both primary and secondary.
+      final fmXp = state.skillState(Skill.firemaking).xp;
+      expect(
+        fmXp,
+        greaterThan(0),
+        reason: 'Secondary tree should also grant FM XP via modifier',
+      );
+    });
+  });
+
+  group('bonfireDurationTicks helper', () {
+    test('returns base duration with no modifier', () {
+      final state = GlobalState.test(testRegistries);
+      final modifiers = state.createActionModifierProvider(
+        burnNormalLogs,
+        conditionContext: ConditionContext.empty,
+        consumesOnType: null,
+      );
+      final ticks = bonfireDurationTicks(modifiers, burnNormalLogs);
+      final expected = ticksFromDuration(burnNormalLogs.bonfireInterval);
+      expect(ticks, expected);
+    });
+  });
+
+  group('isBonfireFree helper', () {
+    test('returns false without potion', () {
+      final state = GlobalState.test(testRegistries);
+      final modifiers = state.createActionModifierProvider(
+        burnNormalLogs,
+        conditionContext: ConditionContext.empty,
+        consumesOnType: null,
+      );
+      expect(modifiers.isBonfireFree, isFalse);
+    });
+
+    test('returns true with Controlled Heat Potion', () {
+      final potion = testItems.byName('Controlled Heat Potion I');
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(potion, count: 1),
+        ]),
+        selectedPotions: {Skill.firemaking.id: potion.id},
+      );
+      final modifiers = state.createActionModifierProvider(
+        burnNormalLogs,
+        conditionContext: ConditionContext.empty,
+        consumesOnType: null,
+      );
+      expect(modifiers.isBonfireFree, isTrue);
+    });
+  });
 }

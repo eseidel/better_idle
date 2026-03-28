@@ -6,6 +6,7 @@ import 'package:logic/src/activity/combat_context.dart';
 import 'package:logic/src/activity/mining_persistent_state.dart';
 import 'package:logic/src/agility_state.dart';
 import 'package:logic/src/astrology_state.dart';
+import 'package:logic/src/bonfire_helpers.dart';
 import 'package:logic/src/bonfire_state.dart';
 import 'package:logic/src/combat_stats.dart';
 import 'package:logic/src/cooking_state.dart';
@@ -4113,12 +4114,9 @@ class GlobalState {
       conditionContext: ConditionContext.empty,
       consumesOnType: null,
     );
-    // freeBonfires comes from potions, so pass skillId explicitly.
-    final isFree =
-        modifiers.getModifier('freeBonfires', skillId: Skill.firemaking.id) > 0;
     final logItem = registries.items.byId(action.logId);
 
-    if (!isFree) {
+    if (!modifiers.isBonfireFree) {
       final logCount = inventory.countOfItem(logItem);
       if (logCount < bonfireLogCost) {
         throw Exception(
@@ -4128,22 +4126,15 @@ class GlobalState {
       }
     }
 
-    final newInventory = isFree
+    final newInventory = modifiers.isBonfireFree
         ? inventory
         : inventory.removing(ItemStack(logItem, count: bonfireLogCost));
 
-    // firemakingBonfireInterval: percentage modifier on bonfire duration.
-    final intervalMod = modifiers
-        .getModifier('firemakingBonfireInterval', skillId: Skill.firemaking.id)
-        .toInt();
-    final baseTicks = ticksFromDuration(action.bonfireInterval);
-    final bonfireTicks = (baseTicks * (1.0 + intervalMod / 100.0))
-        .round()
-        .clamp(1, baseTicks * 10);
+    final ticks = bonfireDurationTicks(modifiers, action);
     final newBonfire = BonfireState(
       actionId: action.id,
-      ticksRemaining: bonfireTicks,
-      totalTicks: bonfireTicks,
+      ticksRemaining: ticks,
+      totalTicks: ticks,
       xpBonus: action.bonfireXPBonus,
     );
 
