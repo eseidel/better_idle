@@ -184,12 +184,20 @@ class CookingRegistry {
        _categories = categories {
     _byId = {for (final a in _actions) a.id.localId: a};
     _categoryById = {for (final c in _categories) c.id: c};
+    // Build reverse lookup: raw ingredient -> cooked product.
+    _cookedForRaw = {};
+    for (final action in _actions) {
+      for (final inputId in action.inputs.keys) {
+        _cookedForRaw[inputId] = action.productId;
+      }
+    }
   }
 
   final List<CookingAction> _actions;
   final List<CookingCategory> _categories;
   late final Map<MelvorId, CookingAction> _byId;
   late final Map<MelvorId, CookingCategory> _categoryById;
+  late final Map<MelvorId, MelvorId> _cookedForRaw;
 
   /// All cooking actions.
   List<CookingAction> get actions => _actions;
@@ -202,4 +210,8 @@ class CookingRegistry {
 
   /// Returns a cooking category by ID, or null if not found.
   CookingCategory? categoryById(MelvorId id) => _categoryById[id];
+
+  /// Returns the cooked product ID for a raw ingredient, or null if no
+  /// cooking recipe uses this item as input.
+  MelvorId? cookedForRaw(MelvorId rawItemId) => _cookedForRaw[rawItemId];
 }
