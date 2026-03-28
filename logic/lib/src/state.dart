@@ -31,6 +31,7 @@ import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/loot_state.dart';
+import 'package:logic/src/types/modifier_names.dart';
 import 'package:logic/src/types/modifier_provider.dart';
 import 'package:logic/src/types/open_result.dart';
 import 'package:logic/src/types/potion_upgrade_result.dart';
@@ -903,11 +904,30 @@ class GlobalState {
   /// This is the game data used to load the state.
   final Registries registries;
 
-  /// The player's maximum HP (computed from Hitpoints skill level).
+  /// The player's base maximum HP (computed from Hitpoints skill level).
   /// Each Hitpoints level grants 10 HP.
+  ///
+  /// For the modified value that includes equipment bonuses, use
+  /// [maxPlayerHpWithModifiers].
   int get maxPlayerHp {
     final hitpointsLevel = skillState(Skill.hitpoints).skillLevel;
     return hitpointsLevel * 10;
+  }
+
+  /// The player's maximum HP including modifier bonuses.
+  ///
+  /// Applies `maxHitpoints` (percentage) and `flatMaxHitpoints` (flat bonus)
+  /// on top of the base HP from Hitpoints skill level.
+  int maxPlayerHpWithModifiers(ModifierAccessors modifiers) {
+    var hp = maxPlayerHp;
+    // Apply percentage modifier first.
+    final pct = modifiers.maxHitpoints;
+    if (pct != 0) {
+      hp = (hp * (1 + pct / 100)).floor();
+    }
+    // Then apply flat bonus.
+    hp += modifiers.flatMaxHitpoints;
+    return hp.clamp(1, 999999);
   }
 
   /// The player's combat level using Melvor Idle formula.

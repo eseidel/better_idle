@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/state.dart';
+import 'package:logic/src/types/modifier_names.dart';
 import 'package:logic/src/types/modifier_provider.dart';
 import 'package:meta/meta.dart';
 
@@ -499,6 +500,44 @@ PlayerCombatStats computePlayerStats(
   required ConditionContext conditionContext,
 }) {
   return PlayerCombatStats.fromState(state, conditionContext: conditionContext);
+}
+
+/// Extension on [ModifierAccessors] for combat damage modifier helpers.
+///
+/// These reduce repetitive switch statements when applying damage dealt,
+/// damage taken, and other combat-specific modifier calculations.
+extension CombatModifierHelpers on ModifierAccessors {
+  /// Returns the total percentage modifier to damage dealt against a monster.
+  ///
+  /// Combines:
+  /// - [damageDealt] - percentage bonus to all damage dealt
+  /// - [damageDealtToAllMonsters] - bonus vs all monsters
+  /// - [damageDealtToBosses] - bonus vs bosses (when [isBoss] is true)
+  /// - [damageDealtToSlayerTasks] - bonus vs slayer task monsters
+  ///   (when [isFightingSlayerTask] is true)
+  int totalDamageDealtModifier({
+    required bool isBoss,
+    required bool isFightingSlayerTask,
+  }) {
+    var modifier = damageDealt + damageDealtToAllMonsters;
+    if (isBoss) {
+      modifier += damageDealtToBosses;
+    }
+    if (isFightingSlayerTask) {
+      modifier += damageDealtToSlayerTasks;
+    }
+    return modifier;
+  }
+
+  /// Applies the [damageTaken] modifier to incoming damage.
+  ///
+  /// The `damageTaken` modifier is a percentage change to damage received.
+  /// Negative values reduce damage (e.g., -10 means 10% less damage taken).
+  int applyDamageTakenModifier(int damage) {
+    final modifier = damageTaken;
+    if (modifier == 0) return damage;
+    return (damage * (1 + modifier / 100)).floor().clamp(0, damage * 10);
+  }
 }
 
 /// XP grants from combat damage.
