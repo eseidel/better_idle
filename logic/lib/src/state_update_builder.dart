@@ -488,7 +488,7 @@ class StateUpdateBuilder {
   /// - No more food available in selected slot
   ///
   /// Returns number of food items consumed.
-  int tryAutoEat(ModifierAccessors modifiers) {
+  int tryAutoEat(ModifierAccessors modifiers, {Random? random}) {
     final threshold = modifiers.autoEatThreshold;
     if (threshold <= 0) return 0;
 
@@ -534,26 +534,40 @@ class StateUpdateBuilder {
       // Apply efficiency to heal amount
       final effectiveHeal = (healAmount * efficiency / 100).ceil();
 
-      // Consume the food
-      final newEquipment = _state.equipment.consumeSelectedFood();
-      if (newEquipment == null) break;
+      // Roll food preservation chance (chance to heal without consuming food)
+      final preserved =
+          random != null && _rollFoodPreservation(modifiers, random);
 
-      // Track the consumption in changes (both inventory change and food eaten)
-      _changes = _changes
-          .removing(ItemStack(food.item, count: 1))
-          .recordingFoodEaten(food.item.id, 1);
+      if (!preserved) {
+        // Consume the food
+        final newEquipment = _state.equipment.consumeSelectedFood();
+        if (newEquipment == null) break;
 
-      // Apply the heal
-      _state = _state.copyWith(
-        equipment: newEquipment,
-        health: _state.health.heal(effectiveHeal),
-      );
+        // Track the consumption in changes
+        _changes = _changes
+            .removing(ItemStack(food.item, count: 1))
+            .recordingFoodEaten(food.item.id, 1);
+
+        _state = _state.copyWith(equipment: newEquipment);
+      }
+
+      // Apply the heal (whether food was consumed or preserved)
+      _state = _state.copyWith(health: _state.health.heal(effectiveHeal));
 
       hp = _state.playerHp;
       foodConsumed++;
     }
 
     return foodConsumed;
+  }
+
+  /// Rolls the food preservation chance. Returns true if food should be
+  /// preserved (heals without being consumed). Capped at 80%.
+  bool _rollFoodPreservation(ModifierAccessors modifiers, Random random) {
+    final chance = modifiers.foodPreservationChance;
+    if (chance <= 0) return false;
+    final effective = chance.clamp(0, 80).toDouble() / 100.0;
+    return random.nextDouble() < effective;
   }
 
   /// Adds a summoning mark for a familiar.
@@ -799,6 +813,26 @@ class StateUpdateBuilder {
     // Consume one from the stack
     final equipment = _state.equipment.consumeStackSlotCharges(
       EquipmentSlot.consumable,
+      1,
+    );
+    _state = _state.copyWith(equipment: equipment);
+  }
+
+  /// Consumes one ammo from the quiver slot during a ranged attack.
+  /// Rolls ammoPreservationChance first; if preserved, no ammo is consumed.
+  void consumeAmmo(ModifierAccessors modifiers, Random random) {
+    final ammo = _state.equipment.gearInSlot(EquipmentSlot.quiver);
+    if (ammo == null) return;
+
+    // Roll ammo preservation chance (capped at 80%)
+    final chance = modifiers.ammoPreservationChance;
+    if (chance > 0) {
+      final effective = chance.clamp(0, 80).toDouble() / 100.0;
+      if (random.nextDouble() < effective) return; // Preserved
+    }
+
+    final equipment = _state.equipment.consumeStackSlotCharges(
+      EquipmentSlot.quiver,
       1,
     );
     _state = _state.copyWith(equipment: equipment);

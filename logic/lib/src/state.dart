@@ -3125,7 +3125,7 @@ class GlobalState {
 
   /// Applies compost to an empty plot before planting.
   /// Compost can only be applied to empty plots, not to growing crops.
-  GlobalState applyCompost(MelvorId plotId, Item compost) {
+  GlobalState applyCompost(MelvorId plotId, Item compost, {Random? random}) {
     // Validate compost item has compost value
     final compostValue = compost.compostValue;
     if (compostValue == null || compostValue == 0) {
@@ -3154,8 +3154,21 @@ class GlobalState {
       );
     }
 
-    // Consume compost from inventory
-    final newInventory = inventory.removing(ItemStack(compost, count: 1));
+    // Roll compost preservation chance (chance to not consume compost).
+    var preserved = false;
+    if (random != null) {
+      final modifiers = createGlobalModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+      final chance = modifiers.compostPreservationChance;
+      preserved =
+          chance > 0 &&
+          random.nextDouble() < chance.clamp(0, 80).toDouble() / 100.0;
+    }
+
+    final newInventory = preserved
+        ? inventory
+        : inventory.removing(ItemStack(compost, count: 1));
 
     // Add compost item to the plot's compost list
     final newPlotState = plotState.copyWith(
@@ -3322,8 +3335,9 @@ class GlobalState {
     MelvorId categoryId,
     FarmingCrop crop,
     Item? compost,
-    int compostCount,
-  ) {
+    int compostCount, {
+    Random? random,
+  }) {
     final gpCost = 5000 + (compost != null ? 2000 : 0);
     if (gp < gpCost) return null;
 
@@ -3347,7 +3361,7 @@ class GlobalState {
         var applied = 0;
         for (var i = 0; i < compostCount; i++) {
           if (state.inventory.countOfItem(compost) < 1) break;
-          state = state.applyCompost(plotId, compost);
+          state = state.applyCompost(plotId, compost, random: random);
           applied++;
         }
         if (applied == 0 && compostCount > 0) {
