@@ -977,6 +977,43 @@ bool completeAction(
     builder.markTabletCrafted(action.productId);
   }
 
+  // Runecrafting bonus modifiers.
+  if (action is RunecraftingAction) {
+    final rc = registries.runecrafting;
+    // doubleRuneProvision: chance to double rune output.
+    final doubleChance = modifierProvider.doubleRuneProvision;
+    if (doubleChance > 0 && rc.isRune(action.productId)) {
+      if (random.nextDouble() < doubleChance / 100.0) {
+        final item = registries.items.byId(action.productId);
+        builder.addInventory(
+          ItemStack(item, count: action.baseQuantity),
+        );
+      }
+    }
+    // elementalRuneChance/Quantity: bonus elemental runes.
+    final elemChance = modifierProvider.elementalRuneChance;
+    if (elemChance > 0 &&
+        rc.isElementalRune(action.productId)) {
+      if (random.nextDouble() < elemChance / 100.0) {
+        final qty =
+            max(1, modifierProvider.elementalRuneQuantity);
+        final item = registries.items.byId(action.productId);
+        builder.addInventory(ItemStack(item, count: qty));
+      }
+    }
+    // giveRandomComboRunesRunecrafting: random combo runes.
+    final comboChance =
+        modifierProvider.giveRandomComboRunesRunecrafting;
+    if (comboChance > 0 && rc.comboRuneIds.isNotEmpty) {
+      if (random.nextDouble() < comboChance / 100.0) {
+        final list = rc.comboRuneIds.toList();
+        final picked = list[random.nextInt(list.length)];
+        final item = registries.items.byId(picked);
+        builder.addInventory(ItemStack(item, count: 1));
+      }
+    }
+  }
+
   // Apply mining swing damage/depletion. Depletion does not short-circuit
   // here; _processMiningForeground handles the respawn wait.
   if (action is MiningAction) {
