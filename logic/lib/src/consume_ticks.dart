@@ -688,9 +688,8 @@ void rollAndCollectThievingDrops(
   // thievingFarmerHerbSackChance: chance for Herb Sack from farmer NPCs.
   final herbSackChance = modifiers.thievingFarmerHerbSackChance;
   if (herbSackChance > 0 && thievingReg.isFarmerNpc(action.id.localId)) {
-    final herbSackId = thievingReg.herbSackItemId;
-    if (herbSackId != null && random.nextDouble() < herbSackChance / 100.0) {
-      final item = registries.items.maybeById(herbSackId);
+    if (random.nextDouble() < herbSackChance / 100.0) {
+      final item = registries.items.maybeById(herbSackItemId);
       if (item != null) {
         builder.addInventory(ItemStack(item, count: 1));
       }

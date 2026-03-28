@@ -163,7 +163,10 @@ class MelvorData {
     _crafting = parseCrafting(skillDataById['melvorD:Crafting']);
     _herblore = parseHerblore(skillDataById['melvorD:Herblore']);
     _runecrafting = parseRunecrafting(skillDataById['melvorD:Runecrafting']);
-    _thieving = parseThieving(skillDataById['melvorD:Thieving']);
+    _thieving = parseThieving(
+      skillDataById['melvorD:Thieving'],
+      smithing: _smithing,
+    );
     _agility = parseAgility(skillDataById['melvorD:Agility']);
     _summoning = parseSummoning(skillDataById['melvorD:Summoning']);
     _astrology = parseAstrology(skillDataById['melvorD:Astrology']);
@@ -799,7 +802,13 @@ RunecraftingRegistry parseRunecrafting(List<SkillDataEntry>? entries) {
 }
 
 /// Parses all thieving data. Returns ThievingRegistry.
-ThievingRegistry parseThieving(List<SkillDataEntry>? entries) {
+///
+/// [smithing] is used to derive bar item IDs from the Bars smithing category,
+/// avoiding hardcoded bar lists.
+ThievingRegistry parseThieving(
+  List<SkillDataEntry>? entries, {
+  required SmithingRegistry smithing,
+}) {
   if (entries == null) {
     return ThievingRegistry(actions: const [], areas: const []);
   }
@@ -852,21 +861,10 @@ ThievingRegistry parseThieving(List<SkillDataEntry>? entries) {
     }
   }
 
-  // Parse herb sack item ID and NPC role data.
-  MelvorId? herbSackItemId;
-  final farmerNpcIds = <MelvorId>[];
-  final minerNpcIds = <MelvorId>[];
+  // Identify Farmer and Miner NPCs by name convention.
+  MelvorId? farmerNpcId;
+  MelvorId? minerNpcId;
   for (final entry in entries) {
-    // bearLeprechaunItem is the Herb Sack item ID in Melvor data.
-    final herbSackJson = entry.data['bearLeprechaunItem'] as String?;
-    if (herbSackJson != null) {
-      herbSackItemId = MelvorId.fromJsonWithNamespace(
-        herbSackJson,
-        defaultNamespace: entry.namespace,
-      );
-    }
-
-    // Identify Farmer and Miner NPCs by name convention.
     final npcs = entry.data['npcs'] as List<dynamic>?;
     if (npcs != null) {
       for (final npcJson in npcs) {
@@ -877,38 +875,29 @@ ThievingRegistry parseThieving(List<SkillDataEntry>? entries) {
           defaultNamespace: entry.namespace,
         );
         if (name.toLowerCase().contains('farmer')) {
-          farmerNpcIds.add(npcId);
+          farmerNpcId = npcId;
         }
         if (name.toLowerCase() == 'miner') {
-          minerNpcIds.add(npcId);
+          minerNpcId = npcId;
         }
       }
     }
   }
 
+  // Derive bar item IDs from the smithing registry's Bars category.
+  final barItemIds = smithing.actions
+      .where((a) => a.categoryId == barsCategoryId)
+      .map((a) => a.productId)
+      .toList();
+
   return ThievingRegistry(
     actions: actions,
     areas: areas,
-    herbSackItemId: herbSackItemId,
-    farmerNpcIds: farmerNpcIds,
-    minerNpcIds: minerNpcIds,
-    barItemIds: _defaultBarItemIds,
+    farmerNpcId: farmerNpcId,
+    minerNpcId: minerNpcId,
+    barItemIds: barItemIds,
   );
 }
-
-/// Well-known bar item IDs used for the Miner random bar thieving modifier.
-/// These are the standard smelting bars available in Melvor Idle.
-const _defaultBarItemIds = [
-  MelvorId('melvorD:Bronze_Bar'),
-  MelvorId('melvorD:Iron_Bar'),
-  MelvorId('melvorD:Steel_Bar'),
-  MelvorId('melvorD:Gold_Bar'),
-  MelvorId('melvorD:Mithril_Bar'),
-  MelvorId('melvorD:Adamantite_Bar'),
-  MelvorId('melvorD:Runite_Bar'),
-  MelvorId('melvorD:Dragonite_Bar'),
-  MelvorId('melvorD:Silver_Bar'),
-];
 
 List<CombatAction> parseCombatActions(
   Map<String, dynamic> json, {

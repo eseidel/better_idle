@@ -1063,23 +1063,19 @@ void main() {
   });
 
   group('ThievingRegistry', () {
-    test('farmerNpcIds is populated from game data', () {
-      // Bob the Farmer should be identified as a farmer NPC.
+    test('farmerNpcId is populated from game data', () {
+      // Bob the Farmer should be identified as the farmer NPC.
       const bobId = MelvorId('melvorF:BOB_THE_FARMER');
-      expect(testRegistries.thieving.isFarmerNpc(bobId), isTrue);
+      expect(testRegistries.thieving.farmerNpcId, bobId);
     });
 
-    test('minerNpcIds is populated from game data', () {
+    test('minerNpcId is populated from game data', () {
       const minerId = MelvorId('melvorF:MINER');
-      expect(testRegistries.thieving.isMinerNpc(minerId), isTrue);
+      expect(testRegistries.thieving.minerNpcId, minerId);
     });
 
-    test('herbSackItemId is populated from game data', () {
-      expect(testRegistries.thieving.herbSackItemId, isNotNull);
-      expect(
-        testRegistries.thieving.herbSackItemId,
-        const MelvorId('melvorF:Herb_Sack'),
-      );
+    test('herbSackItemId constant matches expected value', () {
+      expect(herbSackItemId, const MelvorId('melvorF:Herb_Sack'));
     });
 
     test('barItemIds is populated', () {
