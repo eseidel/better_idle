@@ -1057,8 +1057,6 @@ class GlobalState {
 
   /// Returns the effective inputs for a skill action, applying any cost
   /// reduction modifiers (e.g., runecraftingRuneCostReduction).
-  // TODO(future): Also apply nonShardSummoningCostReduction and
-  // agilityObstacleItemCost modifiers here.
   Map<MelvorId, int> effectiveInputs(SkillAction action) {
     final actionStateVal = actionState(action.id);
     final selection = actionStateVal.recipeSelection(action);
@@ -1746,10 +1744,19 @@ class GlobalState {
     if (eligibleMonsters.isEmpty) return null;
 
     final monster = eligibleMonsters[random.nextInt(eligibleMonsters.length)];
+
+    // Apply slayerTaskLength modifier (percentage increase to task length).
+    final modifiers = createGlobalModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final taskLengthMod = modifiers.slayerTaskLength;
     final baseKills = category.baseTaskLength;
-    final variance = (baseKills * 0.2).toInt().clamp(1, 100);
+    final modifiedKills = (baseKills * (1.0 + taskLengthMod / 100.0))
+        .round()
+        .clamp(1, 999999);
+    final variance = (modifiedKills * 0.2).toInt().clamp(1, 100);
     final killsRequired =
-        baseKills + random.nextInt(variance * 2 + 1) - variance;
+        modifiedKills + random.nextInt(variance * 2 + 1) - variance;
 
     return SlayerTask(
       categoryId: category.id,
@@ -1809,11 +1816,19 @@ class GlobalState {
   }
 
   /// Returns the list of unmet requirements for entering a slayer area.
+  ///
+  /// If the player has the bypassSlayerItems modifier, SlayerItemRequirements
+  /// are automatically satisfied (e.g., no Mirror Shield needed).
   List<SlayerAreaRequirement> unmetSlayerAreaRequirements(SlayerArea area) {
+    final modifiers = createGlobalModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final bypass = modifiers.bypassSlayerItems > 0;
     return area.entryRequirements.where((req) {
       return switch (req) {
         SlayerLevelRequirement(:final level) =>
           skillState(Skill.slayer).skillLevel < level,
+        SlayerItemRequirement() when bypass => false,
         SlayerItemRequirement(:final itemId) => !equipment.gearSlots.values.any(
           (item) => item.id == itemId,
         ),
@@ -3796,14 +3811,37 @@ class GlobalState {
 
     var newState = _stopAgilityIfActive();
 
-    // Get current slot state for discount calculation
+    // Get current slot state for purchase-count discount
     final slotState = newState.agility.slotState(slot);
-    final discount = slotState.costDiscount;
+    final purchaseDiscount = slotState.costDiscount;
+
+    // Apply agilityObstacleCost modifier (percentage reduction to GP cost,
+    // scoped by obstacle action ID).
+    final modifiers = createGlobalModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final obstacleCostMod = modifiers.agilityObstacleCost(
+      actionId: obstacleId.localId,
+    );
+    final currencyCostMultiplier =
+        (1.0 - purchaseDiscount + obstacleCostMod / 100.0).clamp(0.0, 1.0);
+
+    // Item cost uses agilityObstacleItemCost modifier (global percentage
+    // reduction) combined with the purchase-count discount.
+    // agilityItemCostReductionCanReach100 removes the 95% cap.
+    final itemCostMod = modifiers.agilityObstacleItemCost;
+    final canReach100 = modifiers.agilityItemCostReductionCanReach100 > 0;
+    final maxItemReduction = canReach100 ? 1.0 : 0.95;
+    final itemCostReduction = (purchaseDiscount - itemCostMod / 100.0).clamp(
+      0.0,
+      maxItemReduction,
+    );
+    final itemCostMultiplier = 1.0 - itemCostReduction;
 
     // Check and deduct GP cost
     final gpCost = obstacle.currencyCosts.gpCost;
     if (gpCost > 0) {
-      final discountedGp = (gpCost * (1 - discount)).round();
+      final discountedGp = (gpCost * currencyCostMultiplier).round();
       final balance = currency(Currency.gp);
       if (balance < discountedGp) {
         throw StateError('Not enough GP. Need $discountedGp, have $balance');
@@ -3813,7 +3851,8 @@ class GlobalState {
 
     // Check and deduct item costs
     for (final entry in obstacle.inputs.entries) {
-      final discountedQty = (entry.value * (1 - discount)).ceil();
+      final discountedQty = (entry.value * itemCostMultiplier).ceil();
+      if (discountedQty <= 0) continue;
       final available = newState.inventory.countById(entry.key);
       if (available < discountedQty) {
         final item = registries.items.byId(entry.key);
