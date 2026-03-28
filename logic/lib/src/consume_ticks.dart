@@ -511,7 +511,12 @@ XpPerAction xpPerAction(
     xpModifier += state.bonfire.xpBonus;
   }
 
-  final baseXp = action.xp;
+  var baseXp = action.xp;
+  // runecraftingBaseXPForRunes: flat base XP bonus for rune crafting.
+  if (action is RunecraftingAction &&
+      state.registries.runecrafting.isRune(action.productId)) {
+    baseXp += modifiers.runecraftingBaseXPForRunes;
+  }
   final adjustedXp = (baseXp * (1.0 + xpModifier / 100.0)).round().clamp(
     1,
     baseXp * 10,
@@ -538,7 +543,13 @@ bool rollAndCollectDrops(
   final registries = builder.registries;
   var allItemsAdded = true;
 
-  final doublingChance = action.doublingChance(modifiers);
+  var doublingChance = action.doublingChance(modifiers);
+
+  // halveWoodcuttingDoubleChance: halves doubling for woodcutting.
+  if (action.skill == Skill.woodcutting &&
+      modifiers.halveWoodcuttingDoubleChance > 0) {
+    doublingChance /= 2.0;
+  }
 
   // Compute flat bonus to primary product quantity from mastery/modifiers.
   final flatProductBonus = modifiers
@@ -966,8 +977,25 @@ bool completeAction(
     ..addSkillXp(action.skill, perAction.xp)
     ..addActionMasteryXp(action.id, perAction.masteryXp)
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp)
-    ..consumeSummonChargesForSkill(action)
+    ..consumeSummonChargesForSkill(action, random)
     ..consumePotionCharge(action, random);
+
+  // woodcuttingXPAddedAsFiremakingXP: percentage of WC XP as FM XP.
+  if (action.skill == Skill.woodcutting) {
+    _grantWoodcuttingBonusFiremakingXP(builder, modifierProvider, perAction.xp);
+  }
+
+  // firemakingLogCurrencyGain: grant GP from burning logs.
+  if (action is FiremakingAction) {
+    final pct = modifierProvider.firemakingLogCurrencyGain;
+    if (pct > 0) {
+      final logItem = registries.items.byId(action.logId);
+      final gpGained = (logItem.sellsFor * pct / 100.0).round();
+      if (gpGained > 0) {
+        builder.addCurrency(Currency.gp, gpGained);
+      }
+    }
+  }
 
   // Roll for summoning mark discovery
   _rollMarkDiscovery(builder, action, random);
@@ -976,6 +1004,38 @@ bool completeAction(
   // This unblocks further mark discovery for that familiar
   if (action is SummoningAction) {
     builder.markTabletCrafted(action.productId);
+  }
+
+  // Runecrafting bonus modifiers.
+  if (action is RunecraftingAction) {
+    final rc = registries.runecrafting;
+    // doubleRuneProvision: chance to double rune output.
+    final doubleChance = modifierProvider.doubleRuneProvision;
+    if (doubleChance > 0 && rc.isRune(action.productId)) {
+      if (random.nextDouble() < doubleChance / 100.0) {
+        final item = registries.items.byId(action.productId);
+        builder.addInventory(ItemStack(item, count: action.baseQuantity));
+      }
+    }
+    // elementalRuneChance/Quantity: bonus elemental runes.
+    final elemChance = modifierProvider.elementalRuneChance;
+    if (elemChance > 0 && rc.isElementalRune(action.productId)) {
+      if (random.nextDouble() < elemChance / 100.0) {
+        final qty = max(1, modifierProvider.elementalRuneQuantity);
+        final item = registries.items.byId(action.productId);
+        builder.addInventory(ItemStack(item, count: qty));
+      }
+    }
+    // giveRandomComboRunesRunecrafting: random combo runes.
+    final comboChance = modifierProvider.giveRandomComboRunesRunecrafting;
+    if (comboChance > 0 && rc.comboRuneIds.isNotEmpty) {
+      if (random.nextDouble() < comboChance / 100.0) {
+        final list = rc.comboRuneIds.toList();
+        final picked = list[random.nextInt(list.length)];
+        final item = registries.items.byId(picked);
+        builder.addInventory(ItemStack(item, count: 1));
+      }
+    }
   }
 
   // Apply mining swing damage/depletion. Depletion does not short-circuit
@@ -1098,7 +1158,12 @@ void _completeSecondaryWoodcutting(
   );
   final actionState = builder.state.actionState(secondaryAction.id);
   final selection = actionState.recipeSelection(secondaryAction);
-  final doublingChance = secondaryAction.doublingChance(modifiers);
+  var doublingChance = secondaryAction.doublingChance(modifiers);
+
+  // halveWoodcuttingDoubleChance: halves doubling for woodcutting.
+  if (modifiers.halveWoodcuttingDoubleChance > 0) {
+    doublingChance /= 2.0;
+  }
 
   for (final drop in builder.registries.drops.allDropsForAction(
     secondaryAction,
@@ -1147,16 +1212,36 @@ void _completeSecondaryWoodcutting(
 
   // Grant scaled XP and mastery
   final perAction = xpPerAction(builder.state, secondaryAction, modifiers);
+  final scaledXp = perAction.xp * mAction;
   builder
-    ..addSkillXp(secondaryAction.skill, perAction.xp * mAction)
+    ..addSkillXp(secondaryAction.skill, scaledXp)
     ..addActionMasteryXp(secondaryAction.id, perAction.masteryXp * mAction)
     ..addSkillMasteryXp(
       secondaryAction.skill,
       perAction.masteryPoolXp * mAction,
     );
 
+  // woodcuttingXPAddedAsFiremakingXP: percentage of WC XP as FM XP.
+  _grantWoodcuttingBonusFiremakingXP(builder, modifiers, scaledXp);
+
   // Roll for summoning mark discovery on secondary tree
   _rollMarkDiscovery(builder, secondaryAction, random);
+}
+
+/// Grants bonus firemaking XP as a percentage of woodcutting XP, controlled
+/// by the woodcuttingXPAddedAsFiremakingXP modifier.
+void _grantWoodcuttingBonusFiremakingXP(
+  StateUpdateBuilder builder,
+  ModifierAccessors modifiers,
+  num woodcuttingXp,
+) {
+  final wcToFmPct = modifiers.woodcuttingXPAddedAsFiremakingXP;
+  if (wcToFmPct > 0) {
+    final fmXp = (woodcuttingXp * wcToFmPct / 100.0).round();
+    if (fmXp > 0) {
+      builder.addSkillXp(Skill.firemaking, fmXp);
+    }
+  }
 }
 
 /// Restarts the action if it can repeat, otherwise stops with the
@@ -1369,6 +1454,7 @@ ForegroundResult _restartOrStop(
     builder.consumeSummonChargesForCombat(
       action,
       attackSpeedSeconds: pStats.attackSpeed,
+      random: random,
     );
 
     // Consume consumable if equipped with PlayerAttack trigger

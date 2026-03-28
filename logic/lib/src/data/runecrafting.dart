@@ -116,19 +116,29 @@ class RunecraftingRegistry {
     required List<RunecraftingAction> actions,
     required List<RunecraftingCategory> categories,
     required Set<MelvorId> runeItemIds,
+    Set<MelvorId> elementalRuneIds = const {},
+    Set<MelvorId> comboRuneIds = const {},
   }) : _actions = actions,
        _categories = categories,
-       _runeItemIds = runeItemIds {
+       _runeItemIds = runeItemIds,
+       _elementalRuneIds = elementalRuneIds,
+       _comboRuneIds = comboRuneIds {
     _byId = {for (final a in _actions) a.id.localId: a};
     _categoryById = {for (final c in _categories) c.id: c};
   }
 
   RunecraftingRegistry.empty()
-    : this(actions: const [], categories: const [], runeItemIds: const {});
+    : this(
+        actions: const [],
+        categories: const [],
+        runeItemIds: const {},
+      );
 
   final List<RunecraftingAction> _actions;
   final List<RunecraftingCategory> _categories;
   final Set<MelvorId> _runeItemIds;
+  final Set<MelvorId> _elementalRuneIds;
+  final Set<MelvorId> _comboRuneIds;
   late final Map<MelvorId, RunecraftingAction> _byId;
   late final Map<MelvorId, RunecraftingCategory> _categoryById;
 
@@ -146,6 +156,20 @@ class RunecraftingRegistry {
 
   /// Returns true if the given item ID is a rune (elemental or combination).
   bool isRune(MelvorId itemId) => _runeItemIds.contains(itemId);
+
+  /// Returns true if the item ID is an elemental rune.
+  bool isElementalRune(MelvorId itemId) =>
+      _elementalRuneIds.contains(itemId);
+
+  /// Returns true if the item ID is a combination rune.
+  bool isComboRune(MelvorId itemId) =>
+      _comboRuneIds.contains(itemId);
+
+  /// All elemental rune item IDs.
+  Set<MelvorId> get elementalRuneIds => _elementalRuneIds;
+
+  /// All combination rune item IDs.
+  Set<MelvorId> get comboRuneIds => _comboRuneIds;
 
   /// Applies rune cost reduction to a set of inputs.
   ///

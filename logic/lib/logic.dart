@@ -9,6 +9,7 @@ export 'src/activity/combat_context.dart';
 export 'src/activity/mining_persistent_state.dart';
 export 'src/agility_state.dart';
 export 'src/astrology_state.dart';
+export 'src/bonfire_helpers.dart';
 export 'src/bonfire_state.dart';
 export 'src/combat_stats.dart';
 export 'src/consume_ticks.dart';
