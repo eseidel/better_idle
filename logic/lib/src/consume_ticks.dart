@@ -5,6 +5,10 @@ import 'package:logic/src/farming_background.dart';
 import 'package:logic/src/passive_cooking.dart';
 import 'package:meta/meta.dart';
 
+/// Well-known item ID for Coal Ore, used in cooking failure rewards and
+/// smithing recipes.
+const coalOreId = MelvorId('melvorD:Coal_Ore');
+
 /// Returns the sum of all mastery levels for all actions in a skill.
 /// Used in the mastery XP formula which operates on levels (1-99), not XP.
 /// All actions default to level 1 even if untrained.
@@ -958,7 +962,11 @@ void completeCookingAction(
   // Calculate success chance: 70% base + 0.6% per mastery level (capped at 50)
   // Total possible from mastery: 70% + 30% = 100% at level 50
   final masteryBonus = masteryLevel.clamp(0, 50) * 0.6;
-  final baseSuccessChance = 70.0 + masteryBonus;
+  // successfulCookChance modifier adds percentage points (scoped by action)
+  final modifierBonus = modifiers.successfulCookChance(
+    actionId: action.id.localId,
+  );
+  final baseSuccessChance = 70.0 + masteryBonus + modifierBonus;
   // cookingSuccessCap modifier can increase the cap above 100%
   final successCap = 100.0 + modifiers.cookingSuccessCap;
   final successChance = baseSuccessChance.clamp(0.0, successCap) / 100.0;
@@ -976,6 +984,14 @@ void completeCookingAction(
     // Failed cook: award only 1 XP, no mastery, no output
     // Note: Burnt items are NOT received in Melvor Idle
     builder.addSkillXp(Skill.cooking, 1);
+
+    // flatCoalGainedOnCookingFailure: gain coal on failed cook
+    final coalGain = modifiers.flatCoalGainedOnCookingFailure;
+    if (coalGain > 0) {
+      final coalItem = registries.items.byId(coalOreId);
+      builder.addInventory(ItemStack(coalItem, count: coalGain));
+    }
+
     return;
   }
 
@@ -1017,6 +1033,31 @@ void completeCookingAction(
   }
 
   builder.addInventory(ItemStack(outputItem, count: quantity));
+}
+
+/// Rolls for a random herblore potion when completing a herblore action.
+///
+/// When the randomHerblorePotionChance modifier is active (from Herblore
+/// Potion), there is a percentage chance to receive a random potion from any
+/// herblore recipe on each herblore completion. The tier is selected uniformly
+/// at random across all available tiers.
+void _rollRandomHerblorePotion(
+  StateUpdateBuilder builder,
+  ModifierAccessors modifiers,
+  Random random,
+) {
+  final chance = modifiers.randomHerblorePotionChance;
+  if (chance <= 0) return;
+
+  if (random.nextDouble() >= chance / 100.0) return;
+
+  // Pick a random herblore recipe and award a random-tier potion.
+  final allRecipes = builder.registries.herblore.actions;
+  if (allRecipes.isEmpty) return;
+  final recipe = allRecipes[random.nextInt(allRecipes.length)];
+  final potionId = recipe.potionIds[random.nextInt(recipe.potionIds.length)];
+  final potionItem = builder.registries.items.byId(potionId);
+  builder.addInventory(ItemStack(potionItem, count: 1));
 }
 
 /// Rolls for summoning mark discovery after completing a skill action.
@@ -1140,6 +1181,11 @@ bool completeAction(
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp)
     ..consumeSummonChargesForSkill(action)
     ..consumePotionCharge(action, random);
+
+  // randomHerblorePotionChance: chance to gain a random potion on herblore.
+  if (action is HerbloreAction) {
+    _rollRandomHerblorePotion(builder, modifierProvider, random);
+  }
 
   // Roll for summoning mark discovery
   _rollMarkDiscovery(builder, action, random);
@@ -1653,8 +1699,16 @@ ForegroundResult _restartOrStop(
     // In dungeons, bones only drop when the dungeon's dropBones flag is true.
     final bones = action.bones;
     if (bones != null && (dungeon?.dropBones ?? true)) {
-      final item = builder.registries.items.byId(bones.itemId);
-      final stack = ItemStack(item, count: bones.quantity);
+      // convertBoneDropsIntoCake: replace bone drops with Birthday Cake Slice
+      final convertToCake = combatModifiers.convertBoneDropsIntoCake > 0;
+      final Item boneItem;
+      if (convertToCake) {
+        const cakeId = MelvorId('melvorF:Birthday_Cake_Slice');
+        boneItem = builder.registries.items.byId(cakeId);
+      } else {
+        boneItem = builder.registries.items.byId(bones.itemId);
+      }
+      final stack = ItemStack(boneItem, count: bones.quantity);
       if (hasAutoLooting) {
         if (!builder.tryAddToInventory(stack)) {
           builder.addToLoot(stack, isBones: true);

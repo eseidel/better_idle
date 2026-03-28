@@ -432,11 +432,16 @@ class ModifierProvider with ModifierAccessors {
     }
 
     // --- Potion modifiers ---
-    if (skillId != null) {
-      final potionId = selectedPotions[skillId];
+    // Potions are keyed by skill ID. Use the explicit skillId parameter first,
+    // falling back to the current action's skill when the accessor doesn't
+    // pass a skillId (e.g. randomHerblorePotionChance which is generated as
+    // a simple getter).
+    final potionSkillId = skillId ?? currentActionId?.skillId;
+    if (potionSkillId != null) {
+      final potionId = selectedPotions[potionSkillId];
       if (potionId != null) {
         final inventoryCount = inventory.countById(potionId);
-        final chargesUsed = potionChargesUsed[skillId] ?? 0;
+        final chargesUsed = potionChargesUsed[potionSkillId] ?? 0;
         if (inventoryCount > 0 || chargesUsed > 0) {
           final potion = registries.items.byId(potionId);
           for (final mod in potion.modifiers.modifiers) {
