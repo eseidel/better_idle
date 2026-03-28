@@ -1428,7 +1428,7 @@ void main() {
     });
   });
 
-  group('maxPlayerHpWithModifiers', () {
+  group('applyMaxHpModifiers', () {
     test('returns base HP when no modifiers are active', () {
       final state = GlobalState.test(
         testRegistries,
@@ -1437,60 +1437,38 @@ void main() {
         },
       );
       final mods = StubModifierProvider();
-      expect(state.maxPlayerHp, equals(100)); // 10 * 10
-      expect(state.maxPlayerHpWithModifiers(mods), equals(100));
+      expect(state.baseMaxPlayerHp, equals(100)); // 10 * 10
+      // maxPlayerHp equals base when no equipment provides modifiers.
+      expect(state.maxPlayerHp, equals(100));
+      expect(applyMaxHpModifiers(100, mods), equals(100));
     });
 
     test('maxHitpoints percentage modifier increases HP', () {
-      final state = GlobalState.test(
-        testRegistries,
-        skillStates: const {
-          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
-        },
-      );
       final mods = StubModifierProvider({'maxHitpoints': 20});
       // 100 * (1 + 20/100) = 120
-      expect(state.maxPlayerHpWithModifiers(mods), equals(120));
+      expect(applyMaxHpModifiers(100, mods), equals(120));
     });
 
     test('flatMaxHitpoints adds flat bonus to HP', () {
-      final state = GlobalState.test(
-        testRegistries,
-        skillStates: const {
-          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
-        },
-      );
       final mods = StubModifierProvider({'flatMaxHitpoints': 50});
-      expect(state.maxPlayerHpWithModifiers(mods), equals(150));
+      expect(applyMaxHpModifiers(100, mods), equals(150));
     });
 
     test('both modifiers combine: percentage then flat', () {
-      final state = GlobalState.test(
-        testRegistries,
-        skillStates: const {
-          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
-        },
-      );
       final mods = StubModifierProvider({
         'maxHitpoints': 20,
         'flatMaxHitpoints': 50,
       });
       // 100 * 1.2 = 120, then + 50 = 170
-      expect(state.maxPlayerHpWithModifiers(mods), equals(170));
+      expect(applyMaxHpModifiers(100, mods), equals(170));
     });
 
     test('result is clamped to minimum of 1', () {
-      final state = GlobalState.test(
-        testRegistries,
-        skillStates: const {
-          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
-        },
-      );
       final mods = StubModifierProvider({
         'maxHitpoints': -100,
         'flatMaxHitpoints': -100,
       });
-      expect(state.maxPlayerHpWithModifiers(mods), equals(1));
+      expect(applyMaxHpModifiers(100, mods), equals(1));
     });
   });
 }

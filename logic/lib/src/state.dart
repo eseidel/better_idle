@@ -904,30 +904,24 @@ class GlobalState {
   /// This is the game data used to load the state.
   final Registries registries;
 
-  /// The player's base maximum HP (computed from Hitpoints skill level).
+  /// The player's base maximum HP from Hitpoints skill level alone.
   /// Each Hitpoints level grants 10 HP.
   ///
-  /// For the modified value that includes equipment bonuses, use
-  /// [maxPlayerHpWithModifiers].
-  int get maxPlayerHp {
+  /// Most callers should use [maxPlayerHp] which includes modifiers.
+  int get baseMaxPlayerHp {
     final hitpointsLevel = skillState(Skill.hitpoints).skillLevel;
     return hitpointsLevel * 10;
   }
 
-  /// The player's maximum HP including modifier bonuses.
+  /// The player's maximum HP including equipment and modifier bonuses.
   ///
   /// Applies `maxHitpoints` (percentage) and `flatMaxHitpoints` (flat bonus)
   /// on top of the base HP from Hitpoints skill level.
-  int maxPlayerHpWithModifiers(ModifierAccessors modifiers) {
-    var hp = maxPlayerHp;
-    // Apply percentage modifier first.
-    final pct = modifiers.maxHitpoints;
-    if (pct != 0) {
-      hp = (hp * (1 + pct / 100)).floor();
-    }
-    // Then apply flat bonus.
-    hp += modifiers.flatMaxHitpoints;
-    return hp.clamp(1, 999999);
+  int get maxPlayerHp {
+    final mods = createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    return applyMaxHpModifiers(baseMaxPlayerHp, mods);
   }
 
   /// The player's combat level using Melvor Idle formula.
@@ -4204,4 +4198,18 @@ class GlobalState {
     // Current potion charges + remaining inventory potions worth of charges
     return chargesLeft + (inventoryCount - 1) * chargesPerPotion;
   }
+}
+
+/// Applies max-HP modifiers to a base value.
+///
+/// Applies `maxHitpoints` (percentage) first, then `flatMaxHitpoints` (flat),
+/// and clamps the result to [1, 999999].
+int applyMaxHpModifiers(int baseHp, ModifierAccessors modifiers) {
+  var hp = baseHp;
+  final pct = modifiers.maxHitpoints;
+  if (pct != 0) {
+    hp = (hp * (1 + pct / 100)).floor();
+  }
+  hp += modifiers.flatMaxHitpoints;
+  return hp.clamp(1, 999999);
 }

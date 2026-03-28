@@ -492,7 +492,7 @@ class StateUpdateBuilder {
     final threshold = modifiers.autoEatThreshold;
     if (threshold <= 0) return 0;
 
-    final maxHp = _state.maxPlayerHpWithModifiers(modifiers);
+    final maxHp = _state.maxPlayerHp;
     final currentHp = (maxHp - _state.health.lostHp).clamp(0, maxHp);
     final thresholdHp = (maxHp * threshold / 100).ceil();
 
