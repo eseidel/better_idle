@@ -3077,17 +3077,27 @@ class GlobalState {
     // Get seed item (throws if not found)
     final seed = registries.items.byId(crop.seedId);
 
+    // Apply flatFarmingSeedCost modifier to reduce seed cost (minimum 1).
+    // The modifier value is negative (e.g., -1 means reduce by 1).
+    final modifiers = createGlobalModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final seedCostModifier = modifiers.flatFarmingSeedCost(
+      categoryId: crop.categoryId,
+    );
+    final effectiveSeedCost = max(1, crop.seedCost + seedCostModifier);
+
     // Validate player has seeds
-    if (inventory.countOfItem(seed) < crop.seedCost) {
+    if (inventory.countOfItem(seed) < effectiveSeedCost) {
       throw StateError(
-        'Not enough ${seed.name}: need ${crop.seedCost}, '
+        'Not enough ${seed.name}: need $effectiveSeedCost, '
         'have ${inventory.countOfItem(seed)}',
       );
     }
 
     // Consume seeds from inventory
     final newInventory = inventory.removing(
-      ItemStack(seed, count: crop.seedCost),
+      ItemStack(seed, count: effectiveSeedCost),
     );
 
     // Create new plot state with countdown timer
@@ -3182,6 +3192,11 @@ class GlobalState {
       throw StateError('Category ${crop.categoryId} not found');
     }
 
+    // Create modifier provider for farming modifiers
+    final modifiers = createGlobalModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+
     // Check success chance (50% base + compost value)
     final successChance = (50 + plotState.compostApplied) / 100.0;
     final succeeded = random.nextDouble() < successChance;
@@ -3189,8 +3204,12 @@ class GlobalState {
     // Get product item (throws if not found)
     final product = registries.items.byId(crop.productId);
 
-    // If failed, just clear the plot and return (no harvest, no XP)
-    if (!succeeded) {
+    // farmingCropsCannotDie prevents crop death (failed harvest)
+    final cropsCannotDie =
+        modifiers.farmingCropsCannotDie(actionId: crop.id.localId) > 0;
+
+    // If failed and crops can die, just clear the plot (no harvest, no XP)
+    if (!succeeded && !cropsCannotDie) {
       final newPlotStates = Map<MelvorId, PlotState>.from(plotStates)
         ..remove(plotId);
       return (copyWith(plotStates: newPlotStates), const Changes.empty());
@@ -3220,10 +3239,14 @@ class GlobalState {
       final seed = registries.items.byId(crop.seedId);
       const baseChance = 0.30; // 30% base chance
       final masteryChanceBonus = masteryLevel * 0.002; // +0.2% per level
+      // farmingSeedReturn adds percentage points to seed return chance
+      final seedReturnBonus =
+          modifiers.farmingSeedReturn(actionId: crop.id.localId) / 100.0;
       var seedsReturned = 0;
 
       for (var i = 0; i < quantity; i++) {
-        if (random.nextDouble() < baseChance + masteryChanceBonus) {
+        if (random.nextDouble() <
+            baseChance + masteryChanceBonus + seedReturnBonus) {
           seedsReturned++;
         }
       }
@@ -3332,9 +3355,16 @@ class GlobalState {
         }
       }
 
-      // Plant crop if seeds are available
+      // Plant crop if seeds are available (use effective cost with modifier)
       final seed = state.registries.items.byId(crop.seedId);
-      if (state.inventory.countOfItem(seed) < crop.seedCost) break;
+      final plantModifiers = state.createGlobalModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+      final plantSeedCostModifier = plantModifiers.flatFarmingSeedCost(
+        categoryId: crop.categoryId,
+      );
+      final plantEffectiveCost = max(1, crop.seedCost + plantSeedCostModifier);
+      if (state.inventory.countOfItem(seed) < plantEffectiveCost) break;
       state = state.plantCrop(plotId, crop);
     }
 
