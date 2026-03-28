@@ -1364,6 +1364,9 @@ ForegroundResult _restartOrStop(
       conditionContext: combatContext,
     );
     final mStats = MonsterCombatStats.fromAction(action);
+    final combatModifiers = builder.state.createCombatModifierProvider(
+      conditionContext: combatContext,
+    );
 
     // Consume summoning tablet charges (1 per attack, for relevant familiars)
     builder.consumeSummonChargesForCombat(
@@ -1378,44 +1381,58 @@ ForegroundResult _restartOrStop(
       attackType: playerCombatType,
     );
 
-    // Get combat triangle modifiers based on player vs monster combat types
-    final triangleModifiers = CombatTriangle.getModifiers(
-      playerCombatType,
-      action.attackType,
-    );
-
-    // Calculate hit chance and roll to see if attack hits
-    // Player attacks monster using the player's combat type for evasion lookup
-    final monsterDefenceType = playerCombatType == CombatType.melee
-        ? AttackType.melee
-        : playerCombatType == CombatType.ranged
-        ? AttackType.ranged
-        : AttackType.magic;
-    final hitChance = CombatCalculator.playerHitChance(
-      pStats,
-      mStats,
-      monsterDefenceType,
-    );
-
-    if (CombatCalculator.rollHit(random, hitChance)) {
-      final baseDamage = pStats.rollDamage(random);
-      // Apply combat triangle damage modifier
-      final damage = CombatTriangle.applyDamageModifier(
-        baseDamage,
-        triangleModifiers,
+    // cantAttack modifier: skip the attack entirely (no hit roll, no damage)
+    if (combatModifiers.cantAttack <= 0) {
+      // Get combat triangle modifiers based on player vs monster combat types
+      final triangleModifiers = CombatTriangle.getModifiers(
+        playerCombatType,
+        action.attackType,
       );
-      monsterHp -= damage;
 
-      // Grant combat XP based on damage dealt and attack style
-      final xpGrant = CombatXpGrant.fromDamage(
-        damage,
-        builder.state.attackStyle,
+      // Calculate hit chance and roll to see if attack hits
+      // Player attacks monster using the player's combat type for evasion
+      final monsterDefenceType = playerCombatType == CombatType.melee
+          ? AttackType.melee
+          : playerCombatType == CombatType.ranged
+          ? AttackType.ranged
+          : AttackType.magic;
+      final hitChance = CombatCalculator.playerHitChance(
+        pStats,
+        mStats,
+        monsterDefenceType,
       );
-      for (final entry in xpGrant.xpGrants.entries) {
-        builder.addSkillXp(entry.key, entry.value);
+
+      // attackRolls: number of additional attack rolls per turn.
+      // Each extra roll is an independent chance to hit.
+      final extraRolls = combatModifiers.attackRolls;
+      final totalRolls = 1 + extraRolls;
+
+      for (var roll = 0; roll < totalRolls; roll++) {
+        if (CombatCalculator.rollHit(random, hitChance)) {
+          // disableAttackDamage: attack hits but deals 0 damage.
+          // XP is still not granted since no damage is dealt.
+          if (combatModifiers.disableAttackDamage > 0) continue;
+
+          final baseDamage = pStats.rollDamage(random);
+          // Apply combat triangle damage modifier
+          final damage = CombatTriangle.applyDamageModifier(
+            baseDamage,
+            triangleModifiers,
+          );
+          monsterHp -= damage;
+
+          // Grant combat XP based on damage dealt and attack style
+          final xpGrant = CombatXpGrant.fromDamage(
+            damage,
+            builder.state.attackStyle,
+          );
+          for (final entry in xpGrant.xpGrants.entries) {
+            builder.addSkillXp(entry.key, entry.value);
+          }
+        }
+        // Miss: no damage dealt, no XP granted
       }
     }
-    // Miss: no damage dealt, no XP granted
 
     resetPlayerTicks = ticksFromDuration(
       Duration(milliseconds: (pStats.attackSpeed * 1000).round()),
@@ -1626,6 +1643,9 @@ ForegroundResult _restartOrStop(
       builder.state,
       conditionContext: combatCtx,
     );
+    final defenceModifiers = builder.state.createCombatModifierProvider(
+      conditionContext: combatCtx,
+    );
 
     // Consume consumable if equipped with EnemyAttack trigger
     // Monster attack type is the same as its combat type
@@ -1641,23 +1661,46 @@ ForegroundResult _restartOrStop(
       action.attackType,
     );
 
-    // Calculate hit chance and roll to see if monster hits
-    final hitChance = CombatCalculator.monsterHitChance(
-      mStats,
-      pStats,
-      action.attackType,
-    );
+    // Calculate hit chance and roll to see if monster hits.
+    // cantEvade: player cannot evade, so hit chance is always 100%.
+    final hitChance = defenceModifiers.cantEvade > 0
+        ? 1.0
+        : CombatCalculator.monsterHitChance(mStats, pStats, action.attackType);
 
     if (CombatCalculator.rollHit(random, hitChance)) {
       final damage = mStats.rollDamage(random);
-      // Apply combat triangle to damage reduction
+      // Use type-specific damage reduction (includes flatResistanceAgainst*
+      // and flatResistanceAgainstSlayerTasks modifiers).
+      final effectiveDR = pStats.damageReductionAgainst(action.attackType);
       final reducedDamage = CombatTriangle.applyDamageReduction(
         damage,
-        pStats.damageReduction,
+        effectiveDR,
         triangleModifiers,
       );
       health = health.takeDamage(reducedDamage);
       builder.setHealth(health);
+
+      // Reflect damage back to the monster when hit.
+      // reflectDamage: percentage of damage taken reflected.
+      // rolledReflectDamage: random value from 0 to (% of player max hit).
+      // flatReflectDamage: flat damage reflected per hit.
+      final reflectPercent = defenceModifiers.reflectDamage;
+      final rolledReflectPercent = defenceModifiers.rolledReflectDamage;
+      final flatReflect = defenceModifiers.flatReflectDamage;
+      var totalReflect = 0;
+      if (reflectPercent > 0) {
+        totalReflect += (reducedDamage * reflectPercent / 100).floor();
+      }
+      if (rolledReflectPercent > 0) {
+        final maxReflect = (pStats.maxHit * rolledReflectPercent / 100).floor();
+        if (maxReflect > 0) {
+          totalReflect += random.nextInt(maxReflect) + 1;
+        }
+      }
+      totalReflect += flatReflect;
+      if (totalReflect > 0) {
+        monsterHp -= totalReflect;
+      }
     }
     // Miss: no damage taken
 

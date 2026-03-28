@@ -290,6 +290,7 @@ class Item {
     this.potionAction,
     this.consumesOn = const [],
     this.dropTable,
+    this.modifiers = const ModifierDataSet([]),
   }) : id = MelvorId('melvorD:${name.replaceAll(' ', '_')}'),
        itemType = potionCharges != null ? 'Potion' : 'Item',
        sellsFor = gp,
@@ -298,7 +299,6 @@ class Item {
        description = null,
        media = null,
        validSlots = const <EquipmentSlot>[],
-       modifiers = const ModifierDataSet([]),
        conditionalModifiers = const <ConditionalModifier>[],
        equipmentStats = EquipmentStats.empty,
        masteryTokenSkillId = null;
