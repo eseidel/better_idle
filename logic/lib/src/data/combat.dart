@@ -126,6 +126,19 @@ enum AttackType {
     AttackType.ranged => CombatType.ranged,
     AttackType.magic => CombatType.magic,
   };
+
+  /// Resolves [random] to a concrete attack type (melee, ranged, or magic).
+  ///
+  /// Non-random types are returned as-is.
+  AttackType resolve(Random random) {
+    if (this != AttackType.random) return this;
+    const concreteTypes = [
+      AttackType.melee,
+      AttackType.ranged,
+      AttackType.magic,
+    ];
+    return concreteTypes[random.nextInt(concreteTypes.length)];
+  }
 }
 
 /// A combat action for fighting a specific monster.

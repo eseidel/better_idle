@@ -333,6 +333,15 @@ class StateUpdateBuilder {
     _state = _state.copyWith(health: health);
   }
 
+  /// Heals the player by the given [amount] of HP.
+  ///
+  /// Returns the updated [HealthState] after healing.
+  HealthState healPlayer(int amount) {
+    final newHealth = _state.health.heal(amount);
+    setHealth(newHealth);
+    return newHealth;
+  }
+
   void setStunned(StunnedState stunned) {
     _state = _state.copyWith(stunned: stunned);
   }

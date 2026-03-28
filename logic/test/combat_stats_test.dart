@@ -1413,13 +1413,11 @@ void main() {
         expect(mods.protectionForAttackType(AttackType.magic), 25);
       });
 
-      test('returns 0 for random attack type', () {
-        final mods = StubModifierProvider({
-          'meleeProtection': 15,
-          'rangedProtection': 20,
-          'magicProtection': 25,
-        });
-        expect(mods.protectionForAttackType(AttackType.random), 0);
+      test('returns 0 when no protection modifiers', () {
+        final mods = StubModifierProvider();
+        expect(mods.protectionForAttackType(AttackType.melee), 0);
+        expect(mods.protectionForAttackType(AttackType.ranged), 0);
+        expect(mods.protectionForAttackType(AttackType.magic), 0);
       });
     });
 
@@ -1500,19 +1498,26 @@ void main() {
         );
       });
 
-      test('random attack type is never immune', () {
+      test('direct immunity combined with otherStyleImmunity', () {
         final mods = StubModifierProvider({
           'meleeImmunity': 1,
-          'rangedImmunity': 1,
-          'magicImmunity': 1,
           'otherStyleImmunity': 1,
         });
+        // Direct immunity for melee
         expect(
           mods.isImmuneToAttackType(
-            AttackType.random,
+            AttackType.melee,
             playerCombatType: CombatType.melee,
           ),
-          isFalse,
+          isTrue,
+        );
+        // otherStyleImmunity for non-melee
+        expect(
+          mods.isImmuneToAttackType(
+            AttackType.ranged,
+            playerCombatType: CombatType.melee,
+          ),
+          isTrue,
         );
       });
     });
@@ -1616,5 +1621,51 @@ void main() {
         expect(mods.applyDamageTakenModifier(100), equals(0));
       });
     });
+  });
+
+  group('AttackType.resolve', () {
+    test('non-random types return themselves', () {
+      final random = Random(42);
+      expect(AttackType.melee.resolve(random), AttackType.melee);
+      expect(AttackType.ranged.resolve(random), AttackType.ranged);
+      expect(AttackType.magic.resolve(random), AttackType.magic);
+    });
+
+    test('random resolves to a concrete type', () {
+      final random = Random(42);
+      final resolved = AttackType.random.resolve(random);
+      expect(
+        resolved,
+        anyOf(AttackType.melee, AttackType.ranged, AttackType.magic),
+      );
+      expect(resolved, isNot(AttackType.random));
+    });
+
+    test('random can resolve to different types', () {
+      // With enough iterations we should see all three types.
+      final types = <AttackType>{};
+      final random = Random(0);
+      for (var i = 0; i < 100; i++) {
+        types.add(AttackType.random.resolve(random));
+      }
+      expect(
+        types,
+        containsAll([AttackType.melee, AttackType.ranged, AttackType.magic]),
+      );
+    });
+  });
+
+  group('modifierToPercent', () {
+    test('converts 100-base integer to fractional multiplier', () {
+      expect(modifierToPercent(0), 0.0);
+      expect(modifierToPercent(10), closeTo(0.1, 0.001));
+      expect(modifierToPercent(50), closeTo(0.5, 0.001));
+      expect(modifierToPercent(100), closeTo(1.0, 0.001));
+      expect(modifierToPercent(-25), closeTo(-0.25, 0.001));
+    });
+  });
+
+  test('critDamageMultiplier is 1.5', () {
+    expect(critDamageMultiplier, 1.5);
   });
 }

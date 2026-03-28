@@ -6,6 +6,9 @@ import 'package:logic/src/types/modifier_names.dart';
 import 'package:logic/src/types/modifier_provider.dart';
 import 'package:meta/meta.dart';
 
+/// Multiplier applied to damage on a critical hit.
+const double critDamageMultiplier = 1.5;
+
 /// Combat triangle modifiers for a specific matchup.
 ///
 /// In Melvor Idle's Normal mode, the combat triangle provides damage and
@@ -119,6 +122,13 @@ class CombatTriangle {
     return (damage * (1 - effectiveDR)).round();
   }
 }
+
+/// Converts a 100-base modifier value to a fractional multiplier.
+///
+/// Many Melvor modifiers use a 100-base integer representation where
+/// 10 means 10%, 50 means 50%, etc. This helper converts such a value
+/// to a `double` fraction (e.g., 10 -> 0.1, 50 -> 0.5).
+double modifierToPercent(int value) => value / 100.0;
 
 /// Computes accuracy or evasion rating using Melvor formula.
 ///
@@ -535,12 +545,18 @@ extension CombatModifierHelpers on ModifierAccessors {
   /// Returns the protection percentage against the given [attackType].
   ///
   /// Protection reduces incoming damage from a specific attack style.
+  /// The [attackType] must be a resolved concrete type
+  /// (not [AttackType.random]).
   int protectionForAttackType(AttackType attackType) {
+    assert(
+      attackType != AttackType.random,
+      'Resolve AttackType.random before checking protection.',
+    );
     return switch (attackType) {
       AttackType.melee => meleeProtection,
       AttackType.ranged => rangedProtection,
       AttackType.magic => magicProtection,
-      AttackType.random => 0, // No protection against random.
+      AttackType.random => 0, // Unreachable after assert.
     };
   }
 
@@ -549,16 +565,23 @@ extension CombatModifierHelpers on ModifierAccessors {
   /// Immunity means all damage from that style is negated. Checks both
   /// the direct style immunity and the [otherStyleImmunity] modifier
   /// which grants immunity to styles the player is NOT using.
+  ///
+  /// The [attackType] must be a resolved concrete type (not
+  /// [AttackType.random]).
   bool isImmuneToAttackType(
     AttackType attackType, {
     required CombatType playerCombatType,
   }) {
+    assert(
+      attackType != AttackType.random,
+      'Resolve AttackType.random before checking immunity.',
+    );
     // Check direct style immunity.
     final directImmunity = switch (attackType) {
       AttackType.melee => meleeImmunity > 0,
       AttackType.ranged => rangedImmunity > 0,
       AttackType.magic => magicImmunity > 0,
-      AttackType.random => false,
+      AttackType.random => false, // Unreachable after assert.
     };
     if (directImmunity) return true;
 
@@ -600,7 +623,10 @@ extension CombatModifierHelpers on ModifierAccessors {
   int applyDamageTakenModifier(int damage) {
     final modifier = damageTaken;
     if (modifier == 0) return damage;
-    return (damage * (1 + modifier / 100)).floor().clamp(0, damage * 10);
+    return (damage * (1 + modifierToPercent(modifier))).floor().clamp(
+      0,
+      damage * 10,
+    );
   }
 }
 

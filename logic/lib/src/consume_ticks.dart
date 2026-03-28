@@ -1405,13 +1405,13 @@ ForegroundResult _restartOrStop(
         triangleModifiers,
       );
 
-      // Apply crit chance: style-specific chance for 1.5x damage.
+      // Apply crit chance: style-specific chance for bonus damage.
       final combatModifiers = builder.state.createCombatModifierProvider(
         conditionContext: combatContext,
       );
       final critChance = combatModifiers.critChanceForStyle(playerCombatType);
       if (critChance > 0 && random.nextInt(100) < critChance) {
-        damage = (damage * 1.5).floor();
+        damage = (damage * critDamageMultiplier).floor();
       }
 
       monsterHp -= damage;
@@ -1421,10 +1421,10 @@ ForegroundResult _restartOrStop(
         playerCombatType,
       );
       if (lifestealPercent > 0) {
-        final healAmount = (damage * lifestealPercent / 100).floor();
+        final healAmount = (damage * modifierToPercent(lifestealPercent))
+            .floor();
         if (healAmount > 0) {
-          health = health.heal(healAmount);
-          builder.setHealth(health);
+          health = builder.healPlayer(healAmount);
         }
       }
 
@@ -1649,25 +1649,27 @@ ForegroundResult _restartOrStop(
       conditionContext: combatCtx,
     );
 
+    // Resolve the monster's attack type (random -> concrete type).
+    final resolvedAttackType = action.attackType.resolve(random);
+
     // Consume consumable if equipped with EnemyAttack trigger
-    // Monster attack type is the same as its combat type
     builder.consumeConsumable(
       ConsumesOnType.enemyAttack,
-      attackType: action.attackType.combatType,
+      attackType: resolvedAttackType.combatType,
     );
 
     // Get combat triangle modifiers for damage reduction calculation
     final playerCombatType = builder.state.attackStyle.combatType;
     final triangleModifiers = CombatTriangle.getModifiers(
       playerCombatType,
-      action.attackType,
+      resolvedAttackType,
     );
 
     // Calculate hit chance and roll to see if monster hits
     final hitChance = CombatCalculator.monsterHitChance(
       mStats,
       pStats,
-      action.attackType,
+      resolvedAttackType,
     );
 
     // Check immunity before rolling hit - if immune, skip entirely.
@@ -1675,7 +1677,7 @@ ForegroundResult _restartOrStop(
       conditionContext: combatCtx,
     );
     final isImmune = defenseModifiers.isImmuneToAttackType(
-      action.attackType,
+      resolvedAttackType,
       playerCombatType: playerCombatType,
     );
 
@@ -1690,13 +1692,12 @@ ForegroundResult _restartOrStop(
 
       // Apply style-specific protection (percentage damage reduction).
       final protection = defenseModifiers.protectionForAttackType(
-        action.attackType,
+        resolvedAttackType,
       );
       if (protection > 0) {
-        reducedDamage = (reducedDamage * (1 - protection / 100)).floor().clamp(
-          0,
-          damage,
-        );
+        reducedDamage = (reducedDamage * (1 - modifierToPercent(protection)))
+            .floor()
+            .clamp(0, reducedDamage);
       }
 
       health = health.takeDamage(reducedDamage);
