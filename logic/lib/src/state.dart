@@ -4187,6 +4187,15 @@ class GlobalState {
     );
   }
 
+  /// Returns the effective charges per potion bottle, including the
+  /// flatPotionCharges modifier bonus.
+  int _effectiveChargesPerPotion(Item potion) {
+    final modifiers = createGlobalModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    return (potion.potionCharges ?? 1) + modifiers.flatPotionCharges;
+  }
+
   /// Returns the remaining charges on the current potion bottle for a skill.
   /// This counts down from [Item.potionCharges] (e.g. 10 → 0), not total uses.
   int currentPotionChargesRemaining(MelvorId skillId) {
@@ -4194,7 +4203,7 @@ class GlobalState {
     if (potionId == null) return 0;
 
     final potion = registries.items.byId(potionId);
-    final chargesPerPotion = potion.potionCharges ?? 1;
+    final chargesPerPotion = _effectiveChargesPerPotion(potion);
     final chargesUsed = potionChargesUsedForSkill(skillId);
     return chargesPerPotion - chargesUsed;
   }
@@ -4206,7 +4215,7 @@ class GlobalState {
     if (potionId == null) return 0;
 
     final potion = registries.items.byId(potionId);
-    final chargesPerPotion = potion.potionCharges ?? 1;
+    final chargesPerPotion = _effectiveChargesPerPotion(potion);
     final chargesUsed = potionChargesUsedForSkill(skillId);
     final chargesLeft = chargesPerPotion - chargesUsed;
     final inventoryCount = inventory.countById(potionId);

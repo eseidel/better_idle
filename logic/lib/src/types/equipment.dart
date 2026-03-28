@@ -15,17 +15,18 @@ const int foodSlotCount = 3;
 class DeathPenaltyResult {
   const DeathPenaltyResult({
     required this.equipment,
-    required this.slotRolled,
+    this.slotRolled,
     this.itemLost,
   });
 
   /// The updated equipment after the death penalty.
   final Equipment equipment;
 
-  /// The slot that was randomly selected.
-  final EquipmentSlot slotRolled;
+  /// The slot that was randomly selected, or null if no penalty was applied
+  /// (e.g. due to rebirthChance or itemProtection modifiers).
+  final EquipmentSlot? slotRolled;
 
-  /// The item stack that was lost, or null if the slot was empty.
+  /// The item stack that was lost, or null if the slot was empty or protected.
   final ItemStack? itemLost;
 
   /// True if the player was lucky and lost nothing.

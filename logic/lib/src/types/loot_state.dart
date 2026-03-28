@@ -44,17 +44,19 @@ class LootState {
   bool get isFull => stacks.length >= maxLootStacks;
   int get stackCount => stacks.length;
 
-  /// Adds an item to loot. Bones stack; other items create new stacks.
+  /// Adds an item to loot. Bones always stack; other items stack only when
+  /// [allowStacking] is true (from the allowLootContainerStacking modifier).
   /// Returns (newState, lostItems) where lostItems are items that couldn't fit.
   (LootState, List<ItemStack>) addItem(
     ItemStack stack, {
     required bool isBones,
+    bool allowStacking = false,
   }) {
     final newStacks = List<ItemStack>.from(stacks);
     final lostItems = <ItemStack>[];
 
-    if (isBones) {
-      // Bones stack with existing bones of same type
+    if (isBones || allowStacking) {
+      // Stack with existing items of same type
       final existingIndex = newStacks.indexWhere(
         (s) => s.item.id == stack.item.id,
       );
@@ -67,7 +69,7 @@ class LootState {
       }
     }
 
-    // Non-bones or new bones type - add as new stack
+    // Non-stacking or new item type - add as new stack
     if (newStacks.length >= maxLootStacks) {
       // FIFO: remove oldest (first) item
       lostItems.add(newStacks.removeAt(0));
