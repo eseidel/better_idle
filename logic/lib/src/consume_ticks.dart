@@ -511,7 +511,12 @@ XpPerAction xpPerAction(
     xpModifier += state.bonfire.xpBonus;
   }
 
-  final baseXp = action.xp;
+  var baseXp = action.xp;
+  // runecraftingBaseXPForRunes: flat base XP bonus for rune crafting.
+  if (action is RunecraftingAction &&
+      state.registries.runecrafting.isRune(action.productId)) {
+    baseXp += modifiers.runecraftingBaseXPForRunes;
+  }
   final adjustedXp = (baseXp * (1.0 + xpModifier / 100.0)).round().clamp(
     1,
     baseXp * 10,
@@ -947,13 +952,11 @@ bool completeAction(
 
   // woodcuttingXPAddedAsFiremakingXP: percentage of WC XP as FM XP.
   if (action.skill == Skill.woodcutting) {
-    final wcToFmPct = modifierProvider.woodcuttingXPAddedAsFiremakingXP;
-    if (wcToFmPct > 0) {
-      final fmXp = (perAction.xp * wcToFmPct / 100.0).round();
-      if (fmXp > 0) {
-        builder.addSkillXp(Skill.firemaking, fmXp);
-      }
-    }
+    _grantWoodcuttingBonusFiremakingXP(
+      builder,
+      modifierProvider,
+      perAction.xp,
+    );
   }
 
   // firemakingLogCurrencyGain: grant GP from burning logs.
@@ -1193,16 +1196,26 @@ void _completeSecondaryWoodcutting(
     );
 
   // woodcuttingXPAddedAsFiremakingXP: percentage of WC XP as FM XP.
+  _grantWoodcuttingBonusFiremakingXP(builder, modifiers, scaledXp);
+
+  // Roll for summoning mark discovery on secondary tree
+  _rollMarkDiscovery(builder, secondaryAction, random);
+}
+
+/// Grants bonus firemaking XP as a percentage of woodcutting XP, controlled
+/// by the woodcuttingXPAddedAsFiremakingXP modifier.
+void _grantWoodcuttingBonusFiremakingXP(
+  StateUpdateBuilder builder,
+  ModifierAccessors modifiers,
+  num woodcuttingXp,
+) {
   final wcToFmPct = modifiers.woodcuttingXPAddedAsFiremakingXP;
   if (wcToFmPct > 0) {
-    final fmXp = (scaledXp * wcToFmPct / 100.0).round();
+    final fmXp = (woodcuttingXp * wcToFmPct / 100.0).round();
     if (fmXp > 0) {
       builder.addSkillXp(Skill.firemaking, fmXp);
     }
   }
-
-  // Roll for summoning mark discovery on secondary tree
-  _rollMarkDiscovery(builder, secondaryAction, random);
 }
 
 /// Restarts the action if it can repeat, otherwise stops with the

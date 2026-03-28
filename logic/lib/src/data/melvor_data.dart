@@ -752,6 +752,8 @@ RunecraftingRegistry parseRunecrafting(List<SkillDataEntry>? entries) {
   final actions = <RunecraftingAction>[];
   final categories = <RunecraftingCategory>[];
   final runeItemIds = <MelvorId>{};
+  final elementalRuneIds = <MelvorId>{};
+  final comboRuneIds = <MelvorId>{};
 
   for (final entry in entries) {
     final recipes = entry.data['recipes'] as List<dynamic>?;
@@ -781,13 +783,19 @@ RunecraftingRegistry parseRunecrafting(List<SkillDataEntry>? entries) {
     // Collect rune item IDs (elemental + combination) for cost reduction.
     final elementalIds = entry.data['elementalRuneIDs'] as List<dynamic>?;
     if (elementalIds != null) {
-      runeItemIds.addAll(
-        elementalIds.map((id) => MelvorId.fromJson(id as String)),
+      final ids = elementalIds.map(
+        (id) => MelvorId.fromJson(id as String),
       );
+      elementalRuneIds.addAll(ids);
+      runeItemIds.addAll(ids);
     }
     final comboIds = entry.data['comboRuneIDs'] as List<dynamic>?;
     if (comboIds != null) {
-      runeItemIds.addAll(comboIds.map((id) => MelvorId.fromJson(id as String)));
+      final ids = comboIds.map(
+        (id) => MelvorId.fromJson(id as String),
+      );
+      comboRuneIds.addAll(ids);
+      runeItemIds.addAll(ids);
     }
   }
 
@@ -795,6 +803,8 @@ RunecraftingRegistry parseRunecrafting(List<SkillDataEntry>? entries) {
     actions: actions,
     categories: categories,
     runeItemIds: runeItemIds,
+    elementalRuneIds: elementalRuneIds,
+    comboRuneIds: comboRuneIds,
   );
 }
 
