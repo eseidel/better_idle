@@ -145,38 +145,144 @@ MiningState applyMiningTicks(MiningState miningState, Tick ticksElapsed) {
 /// Result of applying HP regen ticks to player health.
 typedef PlayerHpRegenResult = ({HealthState state, Tick ticksConsumed});
 
+/// Pre-computed HP regen parameters from modifiers.
+///
+/// Computed once per background tick batch to avoid repeated modifier lookups.
+@immutable
+class HpRegenParams {
+  const HpRegenParams({
+    this.hitpointRegeneration = 0,
+    this.flatHPRegen = 0,
+    this.flatRegenerationInterval = 0,
+    this.flatHPRegenBasedOnMaxHit = 0,
+    this.hpRegenWhenEnemyHasMoreEvasion = 0,
+    this.hitpointRegenerationAgainstSlayerTasks = 0,
+  });
+
+  /// Builds regen parameters from modifier accessors and combat state.
+  factory HpRegenParams.fromModifiers(
+    ModifierAccessors modifiers, {
+    required int currentMaxHit,
+    required CombatType? currentCombatType,
+    required bool enemyHasMoreEvasion,
+    required bool isFightingSlayerTask,
+  }) {
+    final flatRegenFromMaxHit = _flatHpRegenFromMaxHit(
+      modifiers,
+      currentMaxHit: currentMaxHit,
+      combatType: currentCombatType,
+    );
+
+    return HpRegenParams(
+      hitpointRegeneration: modifiers.hitpointRegeneration,
+      flatHPRegen: modifiers.flatHPRegen,
+      flatRegenerationInterval: modifiers.flatRegenerationInterval,
+      flatHPRegenBasedOnMaxHit: flatRegenFromMaxHit,
+      hpRegenWhenEnemyHasMoreEvasion: enemyHasMoreEvasion
+          ? modifiers.hpRegenWhenEnemyHasMoreEvasion
+          : 0,
+      hitpointRegenerationAgainstSlayerTasks: isFightingSlayerTask
+          ? modifiers.hitpointRegenerationAgainstSlayerTasks
+          : 0,
+    );
+  }
+
+  /// No modifiers applied (default regen behavior).
+  static const none = HpRegenParams();
+
+  /// Percentage modifier to HP regen amount (e.g. 10 = +10%).
+  final double hitpointRegeneration;
+
+  /// Flat bonus HP per regen tick.
+  final double flatHPRegen;
+
+  /// Flat modifier to regen interval in milliseconds.
+  final int flatRegenerationInterval;
+
+  /// Flat HP regen from max-hit-based modifiers (already resolved).
+  final int flatHPRegenBasedOnMaxHit;
+
+  /// Extra flat regen when enemy has higher evasion than player accuracy.
+  final int hpRegenWhenEnemyHasMoreEvasion;
+
+  /// Extra percentage regen against slayer task monsters.
+  final int hitpointRegenerationAgainstSlayerTasks;
+
+  /// Computes the flat HP regen contribution from max-hit-based modifiers.
+  static int _flatHpRegenFromMaxHit(
+    ModifierAccessors modifiers, {
+    required int currentMaxHit,
+    required CombatType? combatType,
+  }) {
+    if (combatType == null || currentMaxHit <= 0) return 0;
+    final percent = switch (combatType) {
+      CombatType.melee => modifiers.flatHPRegenBasedOnMeleeMaxHit,
+      CombatType.ranged => modifiers.flatHPRegenBasedOnRangedMaxHit,
+      CombatType.magic => modifiers.flatHPRegenBasedOnMagicMaxHit,
+    };
+    if (percent <= 0) return 0;
+    return (currentMaxHit * percent / 100).floor();
+  }
+}
+
 /// Applies HP regeneration ticks to player health.
-/// Heals 1% of max HP every 10 seconds while injured.
+///
+/// Base regen: 1% of max HP every 10 seconds (100 ticks).
+/// Modifiers in [params] adjust the heal amount, regen interval,
+/// and add flat bonuses.
 PlayerHpRegenResult _applyPlayerHpRegenTicks(
   HealthState health,
   int maxPlayerHp,
-  Tick ticksAvailable,
-) {
+  Tick ticksAvailable, {
+  HpRegenParams params = HpRegenParams.none,
+}) {
   if (health.isFullHealth) {
     return (state: health, ticksConsumed: 0);
   }
 
   var lostHp = health.lostHp;
+  // Effective regen interval: base 10s + flatRegenerationInterval (ms).
+  final effectiveIntervalMs = 10000 + params.flatRegenerationInterval;
+  final effectiveInterval = max(
+    1,
+    ticksFromDuration(Duration(milliseconds: effectiveIntervalMs)),
+  );
   var ticksUntilNextHeal = health.hpRegenTicksRemaining;
 
-  // If regen timer not started, start it
+  // If regen timer not started, start it.
   if (ticksUntilNextHeal == 0 && lostHp > 0) {
-    ticksUntilNextHeal = hpRegenTickInterval;
+    ticksUntilNextHeal = effectiveInterval;
   }
 
   var ticksRemaining = ticksAvailable;
 
-  // Calculate heal amount (1% of max HP, minimum 1)
-  final healPerTick = max(1, (maxPlayerHp * 0.01).round());
+  // Base heal: 1% of max HP, minimum 1.
+  var baseHeal = max(1, (maxPlayerHp * 0.01).round());
 
-  // Apply heals while we have HP to regen and enough ticks
+  // Apply percentage modifiers (hitpointRegeneration +
+  // hitpointRegenerationAgainstSlayerTasks).
+  final totalPercent =
+      params.hitpointRegeneration +
+      params.hitpointRegenerationAgainstSlayerTasks;
+  if (totalPercent != 0) {
+    baseHeal = max(1, (baseHeal * (1 + totalPercent / 100)).round());
+  }
+
+  // Add flat bonuses.
+  final flatBonus =
+      params.flatHPRegen.round() +
+      params.flatHPRegenBasedOnMaxHit +
+      params.hpRegenWhenEnemyHasMoreEvasion;
+  final healPerTick = max(1, baseHeal + flatBonus);
+
+  // Apply heals while we have HP to regen and enough ticks.
   while (lostHp > 0 && ticksRemaining >= ticksUntilNextHeal) {
     ticksRemaining -= ticksUntilNextHeal;
     lostHp = max(0, lostHp - healPerTick);
-    ticksUntilNextHeal = hpRegenTickInterval;
+    ticksUntilNextHeal = effectiveInterval;
   }
 
-  // Apply partial progress toward next heal if we still have HP to regen
+  // Apply partial progress toward next heal if we still have HP to regen.
   if (lostHp > 0) {
     ticksUntilNextHeal -= ticksRemaining;
     ticksRemaining = 0;
@@ -283,6 +389,70 @@ List<BackgroundTickConsumer> _getBackgroundActions(
   return backgrounds;
 }
 
+/// Builds [HpRegenParams] from the current game state and active combat.
+///
+/// When the player is in combat, reads combat modifiers, player stats, and
+/// monster stats to populate context-sensitive regen bonuses. Outside combat,
+/// returns [HpRegenParams.none] (standard regen only).
+HpRegenParams _buildHpRegenParams(GlobalState state, ActionId? activeActionId) {
+  // Only compute combat-aware regen when in combat.
+  final activity = state.activeActivity;
+  if (activity is! CombatActivity || activeActionId == null) {
+    // Outside combat, still check for non-combat regen modifiers.
+    final modifiers = state.createGlobalModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    return HpRegenParams(
+      hitpointRegeneration: modifiers.hitpointRegeneration,
+      flatHPRegen: modifiers.flatHPRegen,
+      flatRegenerationInterval: modifiers.flatRegenerationInterval,
+    );
+  }
+
+  final combatState = state.actionState(activeActionId).combat;
+  if (combatState == null) return HpRegenParams.none;
+
+  final action = state.registries.combat.monsterById(
+    combatState.monsterId.localId,
+  );
+  final monsterHp = combatState.monsterHp;
+
+  final conditionContext = state.buildCombatConditionContext(
+    enemyAction: action,
+    enemyCurrentHp: monsterHp,
+  );
+  final modifiers = state.createCombatModifierProvider(
+    conditionContext: conditionContext,
+  );
+
+  final pStats = computePlayerStats(state, conditionContext: conditionContext);
+  final mStats = MonsterCombatStats.fromAction(action);
+
+  // Determine if enemy has more evasion than player accuracy.
+  // Compare monster evasion (for the player's attack type) vs player accuracy.
+  final playerCombatType = state.attackStyle.combatType;
+  final playerAttackType = switch (playerCombatType) {
+    CombatType.melee => AttackType.melee,
+    CombatType.ranged => AttackType.ranged,
+    CombatType.magic => AttackType.magic,
+  };
+  final monsterEvasion = switch (playerAttackType) {
+    AttackType.melee => mStats.meleeEvasion,
+    AttackType.ranged => mStats.rangedEvasion,
+    AttackType.magic => mStats.magicEvasion,
+    AttackType.random => mStats.meleeEvasion,
+  };
+  final enemyHasMoreEvasion = monsterEvasion > pStats.accuracy;
+
+  return HpRegenParams.fromModifiers(
+    modifiers,
+    currentMaxHit: pStats.maxHit,
+    currentCombatType: state.attackStyle.combatType,
+    enemyHasMoreEvasion: enemyHasMoreEvasion,
+    isFightingSlayerTask: conditionContext.isFightingSlayerTask,
+  );
+}
+
 /// Applies ticks to all background actions and updates the builder.
 /// Re-reads the current state from the builder to avoid stale data issues
 /// when foreground and background both modify the same action's state.
@@ -296,13 +466,15 @@ void _applyBackgroundTicks(
   // Note: stun countdown is handled by the foreground (it blocks the
   // foreground action, so the foreground owns the lifecycle).
 
-  // Apply player HP regeneration
+  // Apply player HP regeneration with modifier support.
   final health = builder.state.health;
   if (!health.isFullHealth) {
+    final regenParams = _buildHpRegenParams(builder.state, activeActionId);
     final result = _applyPlayerHpRegenTicks(
       health,
       builder.state.maxPlayerHp,
       ticks,
+      params: regenParams,
     );
     builder.setHealth(result.state);
   }
@@ -1413,6 +1585,20 @@ ForegroundResult _restartOrStop(
       );
       for (final entry in xpGrant.xpGrants.entries) {
         builder.addSkillXp(entry.key, entry.value);
+      }
+
+      // Heal on attack based on resistance.
+      final healOnAttackCtx = builder.state.createCombatModifierProvider(
+        conditionContext: combatContext,
+      );
+      final healResistPct = healOnAttackCtx.healingOnAttackBasedOnResistance;
+      if (healResistPct > 0) {
+        final resistance = pStats.damageReduction * 100;
+        final healAmount = (resistance * healResistPct / 100).floor();
+        if (healAmount > 0) {
+          health = health.heal(healAmount);
+          builder.setHealth(health);
+        }
       }
     }
     // Miss: no damage dealt, no XP granted

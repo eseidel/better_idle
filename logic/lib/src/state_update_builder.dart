@@ -528,8 +528,12 @@ class StateUpdateBuilder {
 
       if (food == null) break;
 
-      final healAmount = food.item.healsFor;
-      if (healAmount == null || healAmount <= 0) break;
+      final baseHeal = food.item.healsFor;
+      if (baseHeal == null || baseHeal <= 0) break;
+
+      // Add foodHealingValue modifier (flat HP bonus per food item).
+      final foodBonus = modifiers.foodHealingValue(actionId: food.item.id);
+      final healAmount = baseHeal + foodBonus;
 
       // Apply efficiency to heal amount
       final effectiveHeal = (healAmount * efficiency / 100).ceil();
