@@ -31,6 +31,7 @@ import 'package:logic/src/types/equipment_slot.dart';
 import 'package:logic/src/types/health.dart';
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/loot_state.dart';
+import 'package:logic/src/types/modifier.dart';
 import 'package:logic/src/types/modifier_provider.dart';
 import 'package:logic/src/types/open_result.dart';
 import 'package:logic/src/types/potion_upgrade_result.dart';
@@ -1751,7 +1752,7 @@ class GlobalState {
     );
     final taskLengthMod = modifiers.slayerTaskLength;
     final baseKills = category.baseTaskLength;
-    final modifiedKills = (baseKills * (1.0 + taskLengthMod / 100.0))
+    final modifiedKills = (baseKills * (1.0 + taskLengthMod.toPercent()))
         .round()
         .clamp(1, 999999);
     final variance = (modifiedKills * 0.2).toInt().clamp(1, 100);
@@ -1823,6 +1824,7 @@ class GlobalState {
     final modifiers = createGlobalModifierProvider(
       conditionContext: ConditionContext.empty,
     );
+    // e.g. Slayer Skillcape (melvorF:Slayer_Skillcape) provides this modifier.
     final bypass = modifiers.bypassSlayerItems > 0;
     return area.entryRequirements.where((req) {
       return switch (req) {
@@ -3255,8 +3257,9 @@ class GlobalState {
       const baseChance = 0.30; // 30% base chance
       final masteryChanceBonus = masteryLevel * 0.002; // +0.2% per level
       // farmingSeedReturn adds percentage points to seed return chance
-      final seedReturnBonus =
-          modifiers.farmingSeedReturn(actionId: crop.id.localId) / 100.0;
+      final seedReturnBonus = modifiers
+          .farmingSeedReturn(actionId: crop.id.localId)
+          .toPercent();
       var seedsReturned = 0;
 
       for (var i = 0; i < quantity; i++) {
@@ -3824,18 +3827,16 @@ class GlobalState {
       actionId: obstacleId.localId,
     );
     final currencyCostMultiplier =
-        (1.0 - purchaseDiscount + obstacleCostMod / 100.0).clamp(0.0, 1.0);
+        (1.0 - purchaseDiscount + obstacleCostMod.toPercent()).clamp(0.0, 1.0);
 
     // Item cost uses agilityObstacleItemCost modifier (global percentage
     // reduction) combined with the purchase-count discount.
     // agilityItemCostReductionCanReach100 removes the 95% cap.
     final itemCostMod = modifiers.agilityObstacleItemCost;
     final canReach100 = modifiers.agilityItemCostReductionCanReach100 > 0;
-    final maxItemReduction = canReach100 ? 1.0 : 0.95;
-    final itemCostReduction = (purchaseDiscount - itemCostMod / 100.0).clamp(
-      0.0,
-      maxItemReduction,
-    );
+    final maxItemReduction = canReach100 ? 1.0 : maxAgilityItemCostReduction;
+    final itemCostReduction = (purchaseDiscount - itemCostMod.toPercent())
+        .clamp(0.0, maxItemReduction);
     final itemCostMultiplier = 1.0 - itemCostReduction;
 
     // Check and deduct GP cost
