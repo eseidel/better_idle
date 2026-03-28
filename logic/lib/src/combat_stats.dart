@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/state.dart';
+import 'package:logic/src/types/modifier_names.dart';
 import 'package:logic/src/types/modifier_provider.dart';
 import 'package:meta/meta.dart';
 
@@ -499,6 +500,108 @@ PlayerCombatStats computePlayerStats(
   required ConditionContext conditionContext,
 }) {
   return PlayerCombatStats.fromState(state, conditionContext: conditionContext);
+}
+
+/// Extension on [ModifierAccessors] for style-based combat modifier helpers.
+///
+/// These reduce repetitive switch statements when applying crit, lifesteal,
+/// protection, and immunity modifiers based on combat/attack style.
+extension CombatModifierHelpers on ModifierAccessors {
+  /// Returns the crit chance percentage for the given [combatType].
+  ///
+  /// Each combat style has its own crit chance modifier
+  /// (e.g. meleeCritChance, rangedCritChance, magicCritChance).
+  int critChanceForStyle(CombatType combatType) {
+    return switch (combatType) {
+      CombatType.melee => meleeCritChance,
+      CombatType.ranged => rangedCritChance,
+      CombatType.magic => magicCritChance,
+    };
+  }
+
+  /// Returns the total lifesteal percentage for the given [combatType].
+  ///
+  /// Combines the general [lifesteal] modifier with the style-specific
+  /// modifier (e.g. meleeLifesteal).
+  int lifestealForStyle(CombatType combatType) {
+    final styleLifesteal = switch (combatType) {
+      CombatType.melee => meleeLifesteal,
+      CombatType.ranged => 0, // No rangedLifesteal modifier exists.
+      CombatType.magic => magicLifesteal,
+    };
+    return lifesteal + styleLifesteal;
+  }
+
+  /// Returns the protection percentage against the given [attackType].
+  ///
+  /// Protection reduces incoming damage from a specific attack style.
+  int protectionForAttackType(AttackType attackType) {
+    return switch (attackType) {
+      AttackType.melee => meleeProtection,
+      AttackType.ranged => rangedProtection,
+      AttackType.magic => magicProtection,
+      AttackType.random => 0, // No protection against random.
+    };
+  }
+
+  /// Returns true if the player is immune to the given [attackType].
+  ///
+  /// Immunity means all damage from that style is negated. Checks both
+  /// the direct style immunity and the [otherStyleImmunity] modifier
+  /// which grants immunity to styles the player is NOT using.
+  bool isImmuneToAttackType(
+    AttackType attackType, {
+    required CombatType playerCombatType,
+  }) {
+    // Check direct style immunity.
+    final directImmunity = switch (attackType) {
+      AttackType.melee => meleeImmunity > 0,
+      AttackType.ranged => rangedImmunity > 0,
+      AttackType.magic => magicImmunity > 0,
+      AttackType.random => false,
+    };
+    if (directImmunity) return true;
+
+    // otherStyleImmunity grants immunity to styles different from the
+    // player's own combat type.
+    if (otherStyleImmunity > 0 && attackType.combatType != playerCombatType) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// Returns the total percentage modifier to damage dealt against a monster.
+  ///
+  /// Combines:
+  /// - [damageDealt] - flat percentage bonus to all damage dealt
+  /// - [damageDealtToAllMonsters] - bonus vs all monsters
+  /// - [damageDealtToBosses] - bonus vs bosses (when [isBoss] is true)
+  /// - [damageDealtToSlayerTasks] - bonus vs slayer task monsters
+  ///   (when [isFightingSlayerTask] is true)
+  int totalDamageDealtModifier({
+    required bool isBoss,
+    required bool isFightingSlayerTask,
+  }) {
+    var modifier = damageDealt + damageDealtToAllMonsters;
+    if (isBoss) {
+      modifier += damageDealtToBosses;
+    }
+    if (isFightingSlayerTask) {
+      modifier += damageDealtToSlayerTasks;
+    }
+    return modifier;
+  }
+
+  /// Applies the [damageTaken] modifier to incoming damage.
+  ///
+  /// The `damageTaken` modifier is a percentage change to damage received.
+  /// Negative values reduce damage (e.g., -10 means 10% less damage taken).
+  int applyDamageTakenModifier(int damage) {
+    final modifier = damageTaken;
+    if (modifier == 0) return damage;
+    return (damage * (1 + modifier / 100)).floor().clamp(0, damage * 10);
+  }
 }
 
 /// XP grants from combat damage.

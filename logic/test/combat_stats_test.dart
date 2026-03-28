@@ -1325,4 +1325,296 @@ void main() {
       expect(statsWithContext.maxHit, statsEmpty.maxHit);
     });
   });
+
+  group('CombatModifierHelpers', () {
+    group('critChanceForStyle', () {
+      test('returns meleeCritChance for melee', () {
+        final mods = StubModifierProvider({
+          'meleeCritChance': 10,
+          'rangedCritChance': 20,
+          'magicCritChance': 30,
+        });
+        expect(mods.critChanceForStyle(CombatType.melee), 10);
+      });
+
+      test('returns rangedCritChance for ranged', () {
+        final mods = StubModifierProvider({
+          'meleeCritChance': 10,
+          'rangedCritChance': 20,
+          'magicCritChance': 30,
+        });
+        expect(mods.critChanceForStyle(CombatType.ranged), 20);
+      });
+
+      test('returns magicCritChance for magic', () {
+        final mods = StubModifierProvider({
+          'meleeCritChance': 10,
+          'rangedCritChance': 20,
+          'magicCritChance': 30,
+        });
+        expect(mods.critChanceForStyle(CombatType.magic), 30);
+      });
+
+      test('returns 0 when no crit modifiers are set', () {
+        final mods = StubModifierProvider();
+        expect(mods.critChanceForStyle(CombatType.melee), 0);
+        expect(mods.critChanceForStyle(CombatType.ranged), 0);
+        expect(mods.critChanceForStyle(CombatType.magic), 0);
+      });
+    });
+
+    group('lifestealForStyle', () {
+      test('combines general lifesteal with melee lifesteal', () {
+        final mods = StubModifierProvider({
+          'lifesteal': 5,
+          'meleeLifesteal': 3,
+        });
+        expect(mods.lifestealForStyle(CombatType.melee), 8);
+      });
+
+      test('combines general lifesteal with magic lifesteal', () {
+        final mods = StubModifierProvider({
+          'lifesteal': 5,
+          'magicLifesteal': 7,
+        });
+        expect(mods.lifestealForStyle(CombatType.magic), 12);
+      });
+
+      test('returns only general lifesteal for ranged', () {
+        final mods = StubModifierProvider({'lifesteal': 5});
+        expect(mods.lifestealForStyle(CombatType.ranged), 5);
+      });
+
+      test('returns 0 when no lifesteal modifiers', () {
+        final mods = StubModifierProvider();
+        expect(mods.lifestealForStyle(CombatType.melee), 0);
+        expect(mods.lifestealForStyle(CombatType.ranged), 0);
+        expect(mods.lifestealForStyle(CombatType.magic), 0);
+      });
+    });
+
+    group('protectionForAttackType', () {
+      test('returns meleeProtection for melee', () {
+        final mods = StubModifierProvider({
+          'meleeProtection': 15,
+          'rangedProtection': 20,
+          'magicProtection': 25,
+        });
+        expect(mods.protectionForAttackType(AttackType.melee), 15);
+      });
+
+      test('returns rangedProtection for ranged', () {
+        final mods = StubModifierProvider({'rangedProtection': 20});
+        expect(mods.protectionForAttackType(AttackType.ranged), 20);
+      });
+
+      test('returns magicProtection for magic', () {
+        final mods = StubModifierProvider({'magicProtection': 25});
+        expect(mods.protectionForAttackType(AttackType.magic), 25);
+      });
+
+      test('returns 0 for random attack type', () {
+        final mods = StubModifierProvider({
+          'meleeProtection': 15,
+          'rangedProtection': 20,
+          'magicProtection': 25,
+        });
+        expect(mods.protectionForAttackType(AttackType.random), 0);
+      });
+    });
+
+    group('isImmuneToAttackType', () {
+      test('meleeImmunity blocks melee attacks', () {
+        final mods = StubModifierProvider({'meleeImmunity': 1});
+        expect(
+          mods.isImmuneToAttackType(
+            AttackType.melee,
+            playerCombatType: CombatType.ranged,
+          ),
+          isTrue,
+        );
+      });
+
+      test('rangedImmunity blocks ranged attacks', () {
+        final mods = StubModifierProvider({'rangedImmunity': 1});
+        expect(
+          mods.isImmuneToAttackType(
+            AttackType.ranged,
+            playerCombatType: CombatType.melee,
+          ),
+          isTrue,
+        );
+      });
+
+      test('magicImmunity blocks magic attacks', () {
+        final mods = StubModifierProvider({'magicImmunity': 1});
+        expect(
+          mods.isImmuneToAttackType(
+            AttackType.magic,
+            playerCombatType: CombatType.melee,
+          ),
+          isTrue,
+        );
+      });
+
+      test('otherStyleImmunity blocks attacks from different styles', () {
+        final mods = StubModifierProvider({'otherStyleImmunity': 1});
+        // Player is melee, attacked by ranged -> immune
+        expect(
+          mods.isImmuneToAttackType(
+            AttackType.ranged,
+            playerCombatType: CombatType.melee,
+          ),
+          isTrue,
+        );
+        // Player is melee, attacked by magic -> immune
+        expect(
+          mods.isImmuneToAttackType(
+            AttackType.magic,
+            playerCombatType: CombatType.melee,
+          ),
+          isTrue,
+        );
+      });
+
+      test('otherStyleImmunity does not block same-style attacks', () {
+        final mods = StubModifierProvider({'otherStyleImmunity': 1});
+        // Player is melee, attacked by melee -> NOT immune
+        expect(
+          mods.isImmuneToAttackType(
+            AttackType.melee,
+            playerCombatType: CombatType.melee,
+          ),
+          isFalse,
+        );
+      });
+
+      test('no immunity when no modifiers set', () {
+        final mods = StubModifierProvider();
+        expect(
+          mods.isImmuneToAttackType(
+            AttackType.melee,
+            playerCombatType: CombatType.ranged,
+          ),
+          isFalse,
+        );
+      });
+
+      test('random attack type is never immune', () {
+        final mods = StubModifierProvider({
+          'meleeImmunity': 1,
+          'rangedImmunity': 1,
+          'magicImmunity': 1,
+          'otherStyleImmunity': 1,
+        });
+        expect(
+          mods.isImmuneToAttackType(
+            AttackType.random,
+            playerCombatType: CombatType.melee,
+          ),
+          isFalse,
+        );
+      });
+    });
+
+    group('totalDamageDealtModifier', () {
+      test('combines damageDealt and damageDealtToAllMonsters', () {
+        final mods = StubModifierProvider({
+          'damageDealt': 10,
+          'damageDealtToAllMonsters': 5,
+        });
+        expect(
+          mods.totalDamageDealtModifier(
+            isBoss: false,
+            isFightingSlayerTask: false,
+          ),
+          equals(15),
+        );
+      });
+
+      test('includes damageDealtToBosses when fighting a boss', () {
+        final mods = StubModifierProvider({
+          'damageDealt': 10,
+          'damageDealtToAllMonsters': 5,
+          'damageDealtToBosses': 20,
+        });
+        expect(
+          mods.totalDamageDealtModifier(
+            isBoss: true,
+            isFightingSlayerTask: false,
+          ),
+          equals(35),
+        );
+      });
+
+      test('excludes damageDealtToBosses for non-bosses', () {
+        final mods = StubModifierProvider({
+          'damageDealt': 10,
+          'damageDealtToBosses': 20,
+        });
+        expect(
+          mods.totalDamageDealtModifier(
+            isBoss: false,
+            isFightingSlayerTask: false,
+          ),
+          equals(10),
+        );
+      });
+
+      test('includes damageDealtToSlayerTasks on slayer task', () {
+        final mods = StubModifierProvider({
+          'damageDealt': 5,
+          'damageDealtToSlayerTasks': 15,
+        });
+        expect(
+          mods.totalDamageDealtModifier(
+            isBoss: false,
+            isFightingSlayerTask: true,
+          ),
+          equals(20),
+        );
+      });
+
+      test('combines all modifiers for boss slayer task', () {
+        final mods = StubModifierProvider({
+          'damageDealt': 5,
+          'damageDealtToAllMonsters': 3,
+          'damageDealtToBosses': 10,
+          'damageDealtToSlayerTasks': 7,
+        });
+        expect(
+          mods.totalDamageDealtModifier(
+            isBoss: true,
+            isFightingSlayerTask: true,
+          ),
+          equals(25),
+        );
+      });
+    });
+
+    group('applyDamageTakenModifier', () {
+      test('returns unchanged damage when modifier is zero', () {
+        final mods = StubModifierProvider();
+        expect(mods.applyDamageTakenModifier(100), equals(100));
+      });
+
+      test('negative modifier reduces damage taken', () {
+        final mods = StubModifierProvider({'damageTaken': -10});
+        // 100 * (1 + -10/100) = 100 * 0.9 = 90
+        expect(mods.applyDamageTakenModifier(100), equals(90));
+      });
+
+      test('positive modifier increases damage taken', () {
+        final mods = StubModifierProvider({'damageTaken': 20});
+        // 100 * (1 + 20/100) = 100 * 1.2 = 120
+        expect(mods.applyDamageTakenModifier(100), equals(120));
+      });
+
+      test('damage is clamped to zero minimum', () {
+        final mods = StubModifierProvider({'damageTaken': -200});
+        // Would be negative, clamped to 0.
+        expect(mods.applyDamageTakenModifier(100), equals(0));
+      });
+    });
+  });
 }

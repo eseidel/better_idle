@@ -1400,11 +1400,33 @@ ForegroundResult _restartOrStop(
     if (CombatCalculator.rollHit(random, hitChance)) {
       final baseDamage = pStats.rollDamage(random);
       // Apply combat triangle damage modifier
-      final damage = CombatTriangle.applyDamageModifier(
+      var damage = CombatTriangle.applyDamageModifier(
         baseDamage,
         triangleModifiers,
       );
+
+      // Apply crit chance: style-specific chance for 1.5x damage.
+      final combatModifiers = builder.state.createCombatModifierProvider(
+        conditionContext: combatContext,
+      );
+      final critChance = combatModifiers.critChanceForStyle(playerCombatType);
+      if (critChance > 0 && random.nextInt(100) < critChance) {
+        damage = (damage * 1.5).floor();
+      }
+
       monsterHp -= damage;
+
+      // Apply lifesteal: heal player for a percentage of damage dealt.
+      final lifestealPercent = combatModifiers.lifestealForStyle(
+        playerCombatType,
+      );
+      if (lifestealPercent > 0) {
+        final healAmount = (damage * lifestealPercent / 100).floor();
+        if (healAmount > 0) {
+          health = health.heal(healAmount);
+          builder.setHealth(health);
+        }
+      }
 
       // Grant combat XP based on damage dealt and attack style
       final xpGrant = CombatXpGrant.fromDamage(
@@ -1648,18 +1670,39 @@ ForegroundResult _restartOrStop(
       action.attackType,
     );
 
-    if (CombatCalculator.rollHit(random, hitChance)) {
+    // Check immunity before rolling hit - if immune, skip entirely.
+    final defenseModifiers = builder.state.createCombatModifierProvider(
+      conditionContext: combatCtx,
+    );
+    final isImmune = defenseModifiers.isImmuneToAttackType(
+      action.attackType,
+      playerCombatType: playerCombatType,
+    );
+
+    if (!isImmune && CombatCalculator.rollHit(random, hitChance)) {
       final damage = mStats.rollDamage(random);
       // Apply combat triangle to damage reduction
-      final reducedDamage = CombatTriangle.applyDamageReduction(
+      var reducedDamage = CombatTriangle.applyDamageReduction(
         damage,
         pStats.damageReduction,
         triangleModifiers,
       );
+
+      // Apply style-specific protection (percentage damage reduction).
+      final protection = defenseModifiers.protectionForAttackType(
+        action.attackType,
+      );
+      if (protection > 0) {
+        reducedDamage = (reducedDamage * (1 - protection / 100)).floor().clamp(
+          0,
+          damage,
+        );
+      }
+
       health = health.takeDamage(reducedDamage);
       builder.setHealth(health);
     }
-    // Miss: no damage taken
+    // Miss or immune: no damage taken
 
     resetMonsterTicks = ticksFromDuration(
       Duration(milliseconds: (mStats.attackSpeed * 1000).round()),
