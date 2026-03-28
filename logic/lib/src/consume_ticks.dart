@@ -715,7 +715,7 @@ bool completeThievingAction(
     final modifiers = builder.state.createGlobalModifierProvider(
       conditionContext: ConditionContext.empty, // Auto-eat threshold only.
     );
-    builder.tryAutoEat(modifiers);
+    builder.tryAutoEat(modifiers, random: random);
 
     // Check if player died (after auto-eat attempt)
     if (builder.state.playerHp <= 0) {
@@ -892,6 +892,15 @@ bool _rollPreservation(
   return random.nextDouble() < effective;
 }
 
+/// Rolls the rune preservation chance. Returns true if runes should be
+/// preserved (not consumed). Capped at 80%.
+bool _rollRunePreservation(ModifierAccessors modifiers, Random random) {
+  final chance = modifiers.runePreservationChance;
+  if (chance <= 0) return false;
+  final effective = chance.clamp(0, 80).toDouble() / 100.0;
+  return random.nextDouble() < effective;
+}
+
 /// Completes a skill action, consuming inputs, adding outputs, and awarding XP.
 /// Returns true if the action can repeat (no items were dropped).
 bool completeAction(
@@ -914,8 +923,19 @@ bool completeAction(
   final preserved = _rollPreservation(action, modifierProvider, random);
 
   if (!preserved) {
+    // For alt magic, roll rune preservation separately for rune inputs.
+    final runePreserved =
+        action is AltMagicAction &&
+        _rollRunePreservation(modifierProvider, random);
+
+    final runeKeys = action is AltMagicAction ? action.runesRequired : null;
+
     final inputs = builder.state.effectiveInputs(action);
     for (final requirement in inputs.entries) {
+      // Skip rune inputs if rune preservation triggered.
+      if (runePreserved && (runeKeys?.containsKey(requirement.key) ?? false)) {
+        continue;
+      }
       final item = registries.items.byId(requirement.key);
       builder.removeInventory(ItemStack(item, count: requirement.value));
     }
@@ -1348,6 +1368,14 @@ ForegroundResult _restartOrStop(
       attackType: playerCombatType,
     );
 
+    // Consume ammo from quiver for ranged attacks
+    if (playerCombatType == CombatType.ranged) {
+      final combatModifiers = builder.state.createCombatModifierProvider(
+        conditionContext: combatContext,
+      );
+      builder.consumeAmmo(combatModifiers, random);
+    }
+
     // Get combat triangle modifiers based on player vs monster combat types
     final triangleModifiers = CombatTriangle.getModifiers(
       playerCombatType,
@@ -1639,7 +1667,7 @@ ForegroundResult _restartOrStop(
     final modifiers = builder.state.createGlobalModifierProvider(
       conditionContext: ConditionContext.empty, // Auto-eat threshold only.
     );
-    builder.tryAutoEat(modifiers);
+    builder.tryAutoEat(modifiers, random: random);
   }
 
   // Check if player died (lostHp >= maxHp means playerHp <= 0)

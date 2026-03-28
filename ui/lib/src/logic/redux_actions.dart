@@ -806,16 +806,24 @@ class PlantAllCropsAction extends ReduxAction<GlobalState> {
     required this.crop,
     this.compost,
     this.compostCount = 0,
-  });
+    Random? random,
+  }) : random = random ?? Random();
 
   final MelvorId categoryId;
   final FarmingCrop crop;
   final Item? compost;
   final int compostCount;
+  final Random random;
 
   @override
   GlobalState? reduce() {
-    return state.plantAllCrops(categoryId, crop, compost, compostCount);
+    return state.plantAllCrops(
+      categoryId,
+      crop,
+      compost,
+      compostCount,
+      random: random,
+    );
   }
 }
 
