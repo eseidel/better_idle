@@ -1325,4 +1325,172 @@ void main() {
       expect(statsWithContext.maxHit, statsEmpty.maxHit);
     });
   });
+
+  group('CombatModifierHelpers', () {
+    group('totalDamageDealtModifier', () {
+      test('combines damageDealt and damageDealtToAllMonsters', () {
+        final mods = StubModifierProvider({
+          'damageDealt': 10,
+          'damageDealtToAllMonsters': 5,
+        });
+        expect(
+          mods.totalDamageDealtModifier(
+            isBoss: false,
+            isFightingSlayerTask: false,
+          ),
+          equals(15),
+        );
+      });
+
+      test('includes damageDealtToBosses when fighting a boss', () {
+        final mods = StubModifierProvider({
+          'damageDealt': 10,
+          'damageDealtToAllMonsters': 5,
+          'damageDealtToBosses': 20,
+        });
+        expect(
+          mods.totalDamageDealtModifier(
+            isBoss: true,
+            isFightingSlayerTask: false,
+          ),
+          equals(35),
+        );
+      });
+
+      test('excludes damageDealtToBosses for non-bosses', () {
+        final mods = StubModifierProvider({
+          'damageDealt': 10,
+          'damageDealtToBosses': 20,
+        });
+        expect(
+          mods.totalDamageDealtModifier(
+            isBoss: false,
+            isFightingSlayerTask: false,
+          ),
+          equals(10),
+        );
+      });
+
+      test('includes damageDealtToSlayerTasks on slayer task', () {
+        final mods = StubModifierProvider({
+          'damageDealt': 5,
+          'damageDealtToSlayerTasks': 15,
+        });
+        expect(
+          mods.totalDamageDealtModifier(
+            isBoss: false,
+            isFightingSlayerTask: true,
+          ),
+          equals(20),
+        );
+      });
+
+      test('combines all modifiers for boss slayer task', () {
+        final mods = StubModifierProvider({
+          'damageDealt': 5,
+          'damageDealtToAllMonsters': 3,
+          'damageDealtToBosses': 10,
+          'damageDealtToSlayerTasks': 7,
+        });
+        expect(
+          mods.totalDamageDealtModifier(
+            isBoss: true,
+            isFightingSlayerTask: true,
+          ),
+          equals(25),
+        );
+      });
+    });
+
+    group('applyDamageTakenModifier', () {
+      test('returns unchanged damage when modifier is zero', () {
+        final mods = StubModifierProvider();
+        expect(mods.applyDamageTakenModifier(100), equals(100));
+      });
+
+      test('negative modifier reduces damage taken', () {
+        final mods = StubModifierProvider({'damageTaken': -10});
+        // 100 * (1 + -10/100) = 100 * 0.9 = 90
+        expect(mods.applyDamageTakenModifier(100), equals(90));
+      });
+
+      test('positive modifier increases damage taken', () {
+        final mods = StubModifierProvider({'damageTaken': 20});
+        // 100 * (1 + 20/100) = 100 * 1.2 = 120
+        expect(mods.applyDamageTakenModifier(100), equals(120));
+      });
+
+      test('damage is clamped to zero minimum', () {
+        final mods = StubModifierProvider({'damageTaken': -200});
+        // Would be negative, clamped to 0.
+        expect(mods.applyDamageTakenModifier(100), equals(0));
+      });
+    });
+  });
+
+  group('maxPlayerHpWithModifiers', () {
+    test('returns base HP when no modifiers are active', () {
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
+        },
+      );
+      final mods = StubModifierProvider();
+      expect(state.maxPlayerHp, equals(100)); // 10 * 10
+      expect(state.maxPlayerHpWithModifiers(mods), equals(100));
+    });
+
+    test('maxHitpoints percentage modifier increases HP', () {
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
+        },
+      );
+      final mods = StubModifierProvider({'maxHitpoints': 20});
+      // 100 * (1 + 20/100) = 120
+      expect(state.maxPlayerHpWithModifiers(mods), equals(120));
+    });
+
+    test('flatMaxHitpoints adds flat bonus to HP', () {
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
+        },
+      );
+      final mods = StubModifierProvider({'flatMaxHitpoints': 50});
+      expect(state.maxPlayerHpWithModifiers(mods), equals(150));
+    });
+
+    test('both modifiers combine: percentage then flat', () {
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
+        },
+      );
+      final mods = StubModifierProvider({
+        'maxHitpoints': 20,
+        'flatMaxHitpoints': 50,
+      });
+      // 100 * 1.2 = 120, then + 50 = 170
+      expect(state.maxPlayerHpWithModifiers(mods), equals(170));
+    });
+
+    test('result is clamped to minimum of 1', () {
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0), // Level 10
+        },
+      );
+      final mods = StubModifierProvider({
+        'maxHitpoints': -100,
+        'flatMaxHitpoints': -100,
+      });
+      expect(state.maxPlayerHpWithModifiers(mods), equals(1));
+    });
+  });
 }

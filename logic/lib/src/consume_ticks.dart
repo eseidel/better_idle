@@ -1400,10 +1400,24 @@ ForegroundResult _restartOrStop(
     if (CombatCalculator.rollHit(random, hitChance)) {
       final baseDamage = pStats.rollDamage(random);
       // Apply combat triangle damage modifier
-      final damage = CombatTriangle.applyDamageModifier(
+      var damage = CombatTriangle.applyDamageModifier(
         baseDamage,
         triangleModifiers,
       );
+
+      // Apply damage dealt modifiers (damageDealt, damageDealtToAllMonsters,
+      // damageDealtToBosses, damageDealtToSlayerTasks).
+      final combatModifiers = builder.state.createCombatModifierProvider(
+        conditionContext: combatContext,
+      );
+      final damageDealtPct = combatModifiers.totalDamageDealtModifier(
+        isBoss: action.isBoss,
+        isFightingSlayerTask: combatContext.isFightingSlayerTask,
+      );
+      if (damageDealtPct != 0) {
+        damage = (damage * (1 + damageDealtPct / 100)).floor().clamp(0, 999999);
+      }
+
       monsterHp -= damage;
 
       // Grant combat XP based on damage dealt and attack style
@@ -1651,11 +1665,18 @@ ForegroundResult _restartOrStop(
     if (CombatCalculator.rollHit(random, hitChance)) {
       final damage = mStats.rollDamage(random);
       // Apply combat triangle to damage reduction
-      final reducedDamage = CombatTriangle.applyDamageReduction(
+      var reducedDamage = CombatTriangle.applyDamageReduction(
         damage,
         pStats.damageReduction,
         triangleModifiers,
       );
+
+      // Apply damageTaken modifier (negative = less damage taken).
+      final defenseModifiers = builder.state.createCombatModifierProvider(
+        conditionContext: combatCtx,
+      );
+      reducedDamage = defenseModifiers.applyDamageTakenModifier(reducedDamage);
+
       health = health.takeDamage(reducedDamage);
       builder.setHealth(health);
     }
