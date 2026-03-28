@@ -163,7 +163,10 @@ class MelvorData {
     _crafting = parseCrafting(skillDataById['melvorD:Crafting']);
     _herblore = parseHerblore(skillDataById['melvorD:Herblore']);
     _runecrafting = parseRunecrafting(skillDataById['melvorD:Runecrafting']);
-    _thieving = parseThieving(skillDataById['melvorD:Thieving']);
+    _thieving = parseThieving(
+      skillDataById['melvorD:Thieving'],
+      smithing: _smithing,
+    );
     _agility = parseAgility(skillDataById['melvorD:Agility']);
     _summoning = parseSummoning(skillDataById['melvorD:Summoning']);
     _astrology = parseAstrology(skillDataById['melvorD:Astrology']);
@@ -799,7 +802,13 @@ RunecraftingRegistry parseRunecrafting(List<SkillDataEntry>? entries) {
 }
 
 /// Parses all thieving data. Returns ThievingRegistry.
-ThievingRegistry parseThieving(List<SkillDataEntry>? entries) {
+///
+/// [smithing] is used to derive bar item IDs from the Bars smithing category,
+/// avoiding hardcoded bar lists.
+ThievingRegistry parseThieving(
+  List<SkillDataEntry>? entries, {
+  required SmithingRegistry smithing,
+}) {
   if (entries == null) {
     return ThievingRegistry(actions: const [], areas: const []);
   }
@@ -852,7 +861,42 @@ ThievingRegistry parseThieving(List<SkillDataEntry>? entries) {
     }
   }
 
-  return ThievingRegistry(actions: actions, areas: areas);
+  // Identify Farmer and Miner NPCs by name convention.
+  MelvorId? farmerNpcId;
+  MelvorId? minerNpcId;
+  for (final entry in entries) {
+    final npcs = entry.data['npcs'] as List<dynamic>?;
+    if (npcs != null) {
+      for (final npcJson in npcs) {
+        final npcMap = npcJson as Map<String, dynamic>;
+        final name = npcMap['name'] as String;
+        final npcId = MelvorId.fromJsonWithNamespace(
+          npcMap['id'] as String,
+          defaultNamespace: entry.namespace,
+        );
+        if (name.toLowerCase().contains('farmer')) {
+          farmerNpcId = npcId;
+        }
+        if (name.toLowerCase() == 'miner') {
+          minerNpcId = npcId;
+        }
+      }
+    }
+  }
+
+  // Derive bar item IDs from the smithing registry's Bars category.
+  final barItemIds = smithing.actions
+      .where((a) => a.categoryId == barsCategoryId)
+      .map((a) => a.productId)
+      .toList();
+
+  return ThievingRegistry(
+    actions: actions,
+    areas: areas,
+    farmerNpcId: farmerNpcId,
+    minerNpcId: minerNpcId,
+    barItemIds: barItemIds,
+  );
 }
 
 List<CombatAction> parseCombatActions(

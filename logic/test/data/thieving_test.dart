@@ -877,4 +877,224 @@ void main() {
       );
     });
   });
+
+  group('Thieving modifiers', () {
+    /// Creates an equipment item with a single modifier and equips it.
+    Equipment equipModifier(
+      String modifierName,
+      num value, {
+      ModifierScope scope = const ModifierScope(),
+      EquipmentSlot slot = EquipmentSlot.ring,
+    }) {
+      final item = Item(
+        id: MelvorId('test:${modifierName}_item'),
+        name: '$modifierName item',
+        itemType: 'Equipment',
+        sellsFor: 1,
+        validSlots: [slot],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: modifierName,
+            entries: [ModifierEntry(value: value, scope: scope)],
+          ),
+        ]),
+      );
+      final (equipment, _) = const Equipment.empty().equipGear(item, slot);
+      return equipment;
+    }
+
+    test('flatThievingCurrencyGain adds flat gold', () {
+      final equipment = equipModifier('flatThievingCurrencyGain', 25);
+      final random = Random(0);
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      ).startAction(manAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+      final rng = MockRandom(nextIntValue: 49); // Base gold = 50
+      completeThievingAction(builder, manAction, rng);
+
+      final newState = builder.build();
+      // Base gold = 50, +1% mastery = 50.5 -> 51, +25 flat = 76
+      expect(newState.gp, 76);
+    });
+
+    test('minThievingCurrencyGain enforces minimum gold', () {
+      final equipment = equipModifier('minThievingCurrencyGain', 200);
+      final random = Random(0);
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+      ).startAction(manAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+      // nextIntValue=0 -> base gold = 1
+      final rng = MockRandom();
+      completeThievingAction(builder, manAction, rng);
+
+      final newState = builder.build();
+      // Base gold = 1, +1% mastery = 1.01 -> 1, but min is 200
+      expect(newState.gp, 200);
+    });
+
+    test('ignoreThievingDamage prevents damage on failure', () {
+      final equipment = equipModifier('ignoreThievingDamage', 1);
+      final random = Random(0);
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+        },
+      ).startAction(manAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+      // nextDoubleValue=0.99 -> always fail thieving roll
+      final rng = MockRandom(nextDoubleValue: 0.99, nextIntValue: 10);
+      final playerAlive = completeThievingAction(builder, manAction, rng);
+
+      expect(playerAlive, isTrue);
+      final newState = builder.build();
+      // No damage taken and no stun
+      expect(newState.health.lostHp, 0);
+      expect(newState.isStunned, isFalse);
+      // No gold or XP granted either (failure)
+      expect(newState.gp, 0);
+      expect(newState.skillState(Skill.thieving).xp, 0);
+    });
+
+    test('ignoreThievingDamage scoped to specific action', () {
+      // Scope the modifier to Man action only.
+      final item = Item(
+        id: const MelvorId('test:ignoreThievingDamage_scoped'),
+        name: 'Scoped Ignore Damage',
+        itemType: 'Equipment',
+        sellsFor: 1,
+        validSlots: const [EquipmentSlot.ring],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'ignoreThievingDamage',
+            entries: [
+              ModifierEntry(
+                value: 1,
+                scope: ModifierScope(actionId: manAction.id.localId),
+              ),
+            ],
+          ),
+        ]),
+      );
+      final (equipment, _) = const Equipment.empty().equipGear(
+        item,
+        EquipmentSlot.ring,
+      );
+
+      final random = Random(0);
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        skillStates: const {
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+        },
+      ).startAction(manAction, random: random);
+
+      final builder = StateUpdateBuilder(state);
+      final rng = MockRandom(nextDoubleValue: 0.99, nextIntValue: 10);
+      final playerAlive = completeThievingAction(builder, manAction, rng);
+
+      expect(playerAlive, isTrue);
+      final newState = builder.build();
+      // Damage should be ignored for Man action.
+      expect(newState.health.lostHp, 0);
+      expect(newState.isStunned, isFalse);
+    });
+
+    test('thievingAreaUniqueChancePercent grants bonus area drops', () {
+      // Golbin has area drops (Crate of Basic Supplies, 1/500 base rate).
+      // With 100% bonus, the bonus roll should always succeed.
+      final golbin = testRegistries.thievingAction('Golbin');
+      final equipment = equipModifier('thievingAreaUniqueChancePercent', 100);
+      final random = Random(0);
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        skillStates: const {
+          Skill.thieving: SkillState(xp: 1154, masteryPoolXp: 0),
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+        },
+      ).startAction(golbin, random: random);
+
+      final builder = StateUpdateBuilder(state);
+      // nextDouble=0.0 -> succeeds thieving and all drop rolls
+      final rng = MockRandom();
+      completeThievingAction(builder, golbin, rng);
+
+      final newState = builder.build();
+      const crateId = MelvorId('melvorF:Crate_Of_Basic_Supplies');
+      // Should have at least one crate from the bonus roll.
+      expect(newState.inventory.countById(crateId), greaterThan(0));
+    });
+
+    test('thievingAutoSellPrice grants bonus gold from loot table', () {
+      // Golbin has a loot table with items that have sell prices.
+      final golbin = testRegistries.thievingAction('Golbin');
+      // 100% auto-sell bonus = sellsFor * 100%
+      final equipment = equipModifier('thievingAutoSellPrice', 100);
+      final random = Random(0);
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipment,
+        skillStates: const {
+          Skill.thieving: SkillState(xp: 1154, masteryPoolXp: 0),
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+        },
+      ).startAction(golbin, random: random);
+
+      final builder = StateUpdateBuilder(state);
+      // nextDouble=0.0 -> always succeeds, nextInt=49 -> specific gold
+      final rng = MockRandom(nextIntValue: 49);
+      completeThievingAction(builder, golbin, rng);
+
+      final newState = builder.build();
+      // Should have more gold than just the base thieving gold.
+      // Base gold = 1+49 = 50, +1% mastery = 51, plus auto-sell bonus.
+      expect(newState.gp, greaterThan(51));
+    });
+  });
+
+  group('ThievingRegistry', () {
+    test('farmerNpcId is populated from game data', () {
+      // Bob the Farmer should be identified as the farmer NPC.
+      const bobId = MelvorId('melvorF:BOB_THE_FARMER');
+      expect(testRegistries.thieving.farmerNpcId, bobId);
+    });
+
+    test('minerNpcId is populated from game data', () {
+      const minerId = MelvorId('melvorF:MINER');
+      expect(testRegistries.thieving.minerNpcId, minerId);
+    });
+
+    test('herbSackItemId constant matches expected value', () {
+      expect(herbSackItemId, const MelvorId('melvorF:Herb_Sack'));
+    });
+
+    test('barItemIds is populated', () {
+      expect(testRegistries.thieving.barItemIds, isNotEmpty);
+      expect(
+        testRegistries.thieving.barItemIds,
+        contains(const MelvorId('melvorD:Bronze_Bar')),
+      );
+    });
+
+    test('non-farmer NPC is not identified as farmer', () {
+      expect(
+        testRegistries.thieving.isFarmerNpc(manAction.id.localId),
+        isFalse,
+      );
+    });
+
+    test('non-miner NPC is not identified as miner', () {
+      expect(testRegistries.thieving.isMinerNpc(manAction.id.localId), isFalse);
+    });
+  });
 }

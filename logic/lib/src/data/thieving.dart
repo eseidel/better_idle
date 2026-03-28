@@ -16,6 +16,13 @@ const double areaUniqueDropRate = 1 / 500;
 /// Chance that a thieving loot table drops something (vs nothing).
 const double lootTableDropChance = 0.75;
 
+/// Well-known item ID for the Herb Sack, dropped by Farmer NPCs.
+/// Called "bearLeprechaunItem" in the Melvor JSON data.
+const herbSackItemId = MelvorId('melvorF:Herb_Sack');
+
+/// Well-known category ID for smithing bars (e.g., Bronze Bar, Iron Bar).
+const barsCategoryId = MelvorId('melvorD:Bars');
+
 /// Thieving area - groups NPCs together.
 /// May include area-level drops that apply to all NPCs in the area.
 @immutable
@@ -274,6 +281,9 @@ class ThievingRegistry {
   ThievingRegistry({
     required List<ThievingAction> actions,
     required List<ThievingArea> areas,
+    this.farmerNpcId,
+    this.minerNpcId,
+    this.barItemIds = const [],
   }) : _actions = actions,
        _areas = areas {
     _byId = {for (final a in _actions) a.id.localId: a};
@@ -283,6 +293,15 @@ class ThievingRegistry {
   final List<ThievingArea> _areas;
   late final Map<MelvorId, ThievingAction> _byId;
 
+  /// NPC local ID of the Farmer for the herb sack modifier.
+  final MelvorId? farmerNpcId;
+
+  /// NPC local ID of the Miner for the random bar modifier.
+  final MelvorId? minerNpcId;
+
+  /// Item IDs of bars that can drop from Miner NPCs with modifier.
+  final List<MelvorId> barItemIds;
+
   /// All thieving actions (NPCs).
   List<ThievingAction> get actions => _actions;
 
@@ -291,4 +310,10 @@ class ThievingRegistry {
 
   /// Look up a thieving action by its local ID.
   ThievingAction? byId(MelvorId localId) => _byId[localId];
+
+  /// Whether the given NPC is a Farmer for the herb sack modifier.
+  bool isFarmerNpc(MelvorId npcLocalId) => farmerNpcId == npcLocalId;
+
+  /// Whether the given NPC is a Miner for the random bar modifier.
+  bool isMinerNpc(MelvorId npcLocalId) => minerNpcId == npcLocalId;
 }
