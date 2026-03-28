@@ -412,9 +412,9 @@ class DropsRegistry {
     final area = action.area;
     return [
       if (fishingJunk != null && area.junkChance > 0)
-        DropChance(fishingJunk!, rate: area.junkChance),
+        FishingJunkDrop(fishingJunk!, rate: area.junkChance),
       if (fishingSpecial != null && area.specialChance > 0)
-        DropChance(fishingSpecial!, rate: area.specialChance),
+        FishingSpecialDrop(fishingSpecial!, rate: area.specialChance),
     ];
   }
 }

@@ -617,12 +617,42 @@ bool rollAndCollectDrops(
         totalMastery: totalMastery,
         hasRequiredItem: hasRequiredItem,
       );
+    } else if (drop is FishingJunkDrop) {
+      // cannotFishJunk modifier suppresses junk drops entirely.
+      final cannotJunk = modifiers.cannotFishJunk(actionId: action.id.localId);
+      if (cannotJunk <= 0) {
+        itemStack = drop.roll(registries.items, random);
+      }
+    } else if (drop is FishingSpecialDrop) {
+      // Apply fishing special chance modifiers to the base rate.
+      final specialBonus =
+          modifiers.fishingSpecialChance +
+          modifiers.fishingAdditionalSpecialItemChance +
+          modifiers.bonusFishingSpecialChance(actionId: action.id.localId);
+      final effectiveRate = (drop.rate + specialBonus / 100.0).clamp(0.0, 1.0);
+      if (random.nextDouble() < effectiveRate) {
+        itemStack = drop.child.roll(registries.items, random);
+      }
     } else {
       // For other Droppable types (DropTable, DropChance), use base roll
       itemStack = drop.roll(registries.items, random);
     }
 
     if (itemStack != null) {
+      // fishingCookedChance: chance to receive cooked fish instead of raw.
+      // Only applies to the primary fishing product (the raw fish).
+      if (action is FishingAction &&
+          primaryProductIds.contains(itemStack.item.id)) {
+        final cookedChance = modifiers.fishingCookedChance;
+        if (cookedChance > 0 && random.nextDouble() < cookedChance / 100.0) {
+          final cookedId = registries.cooking.cookedForRaw(itemStack.item.id);
+          if (cookedId != null) {
+            final cookedItem = registries.items.byId(cookedId);
+            itemStack = ItemStack(cookedItem, count: itemStack.count);
+          }
+        }
+      }
+
       // Apply doubling chance
       if (doublingChance > 0 && random.nextDouble() < doublingChance) {
         itemStack = ItemStack(itemStack.item, count: itemStack.count * 2);

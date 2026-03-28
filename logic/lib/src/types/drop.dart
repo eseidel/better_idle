@@ -133,6 +133,25 @@ class DropChance extends Droppable {
   }
 }
 
+/// A fishing junk drop, tagged for modifier handling.
+///
+/// Wraps a junk [DropTable] with the area's junk chance. The
+/// `cannotFishJunk` modifier can suppress this drop entirely.
+@immutable
+class FishingJunkDrop extends DropChance {
+  const FishingJunkDrop(super.child, {required super.rate});
+}
+
+/// A fishing special item drop, tagged for modifier handling.
+///
+/// Wraps a special [DropTable] with the area's special chance. Modifiers
+/// like `fishingSpecialChance`, `bonusFishingSpecialChance`, and
+/// `fishingAdditionalSpecialItemChance` increase the effective rate.
+@immutable
+class FishingSpecialDrop extends DropChance {
+  const FishingSpecialDrop(super.child, {required super.rate});
+}
+
 /// Calculates drop chance based on player progress.
 ///
 /// Different implementations handle fixed chances vs scaling with level/mastery.
