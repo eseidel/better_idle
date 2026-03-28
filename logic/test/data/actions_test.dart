@@ -362,6 +362,196 @@ void main() {
     });
   });
 
+  group('drop quantity and chance modifiers', () {
+    const normalLogsId = MelvorId('melvorD:Normal_Logs');
+
+    test('additionalPrimaryProductChance gives +1 on success', () {
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+
+      // 100% chance for +1 primary product.
+      final modifiers = StubModifierProvider({
+        'additionalPrimaryProductChance': 100,
+      });
+
+      rollAndCollectDrops(
+        builder,
+        normalTree,
+        modifiers,
+        Random(42),
+        const NoSelectedRecipe(),
+      );
+
+      final logsCount = builder.state.inventory.countById(normalLogsId);
+      // Base 1 + 1 from additionalPrimaryProductChance = 2
+      expect(logsCount, 2);
+    });
+
+    test('additionalPrimaryProductChance 0 gives no extra', () {
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+
+      final modifiers = StubModifierProvider();
+
+      rollAndCollectDrops(
+        builder,
+        normalTree,
+        modifiers,
+        Random(42),
+        const NoSelectedRecipe(),
+      );
+
+      expect(builder.state.inventory.countById(normalLogsId), 1);
+    });
+
+    test('basePrimaryProductQuantity applies % bonus', () {
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+
+      // 100% bonus doubles the base quantity.
+      final modifiers = StubModifierProvider({
+        'basePrimaryProductQuantity': 100,
+      });
+
+      rollAndCollectDrops(
+        builder,
+        normalTree,
+        modifiers,
+        Random(42),
+        const NoSelectedRecipe(),
+      );
+
+      final logsCount = builder.state.inventory.countById(normalLogsId);
+      // Base 1 * (1 + 100/100) = 2, floored.
+      expect(logsCount, 2);
+    });
+
+    test('flatAdditionalPrimaryProductQuantity adds flat amount', () {
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+
+      // +3 flat additional primary product.
+      final modifiers = StubModifierProvider({
+        'flatAdditionalPrimaryProductQuantity': 3,
+      });
+
+      rollAndCollectDrops(
+        builder,
+        normalTree,
+        modifiers,
+        Random(42),
+        const NoSelectedRecipe(),
+      );
+
+      final logsCount = builder.state.inventory.countById(normalLogsId);
+      // Base 1 + 3 = 4
+      expect(logsCount, 4);
+    });
+
+    test('multiple primary modifiers stack correctly', () {
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+
+      // basePrimaryProductQuantity 100% doubles base (1 -> 2, floored),
+      // flatAdditionalPrimaryProductQuantity +2,
+      // additionalPrimaryProductChance 100% gives +1.
+      final modifiers = StubModifierProvider({
+        'basePrimaryProductQuantity': 100,
+        'flatAdditionalPrimaryProductQuantity': 2,
+        'additionalPrimaryProductChance': 100,
+      });
+
+      rollAndCollectDrops(
+        builder,
+        normalTree,
+        modifiers,
+        Random(42),
+        const NoSelectedRecipe(),
+      );
+
+      final logsCount = builder.state.inventory.countById(normalLogsId);
+      // floor(1 * 2.0) + 0 (flatBasePrimary) + 2 (flatAdditional) + 1 = 5
+      expect(logsCount, 5);
+    });
+
+    test('additionalItemBasedOnPrimaryQuantityChance grants bonus items', () {
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+
+      // 100% chance for extra items based on primary qty.
+      final modifiers = StubModifierProvider({
+        'additionalItemBasedOnPrimaryQuantityChance': 100,
+      });
+
+      rollAndCollectDrops(
+        builder,
+        normalTree,
+        modifiers,
+        Random(42),
+        const NoSelectedRecipe(),
+      );
+
+      final logsCount = builder.state.inventory.countById(normalLogsId);
+      // Base 1 + 1 extra (100% chance, primary qty = 1) = 2
+      expect(logsCount, 2);
+    });
+
+    test('additionalRandomGemChance grants extra gem roll for mining', () {
+      final state = GlobalState.test(testRegistries);
+
+      // Common gem IDs from the random gems table.
+      const gemIds = [
+        MelvorId('melvorD:Topaz'),
+        MelvorId('melvorD:Sapphire'),
+        MelvorId('melvorD:Ruby'),
+        MelvorId('melvorD:Emerald'),
+        MelvorId('melvorD:Diamond'),
+      ];
+
+      int countGems(Inventory inv) =>
+          gemIds.fold(0, (sum, id) => sum + inv.countById(id));
+
+      // Run many iterations to detect the extra gem roll statistically.
+      var gemsWithBonus = 0;
+      var gemsWithout = 0;
+      const iterations = 10000;
+
+      for (var i = 0; i < iterations; i++) {
+        // With 100% extra gem chance
+        var builder = StateUpdateBuilder(state);
+        final modifiers = StubModifierProvider({
+          'additionalRandomGemChance': 100,
+        });
+        rollAndCollectDrops(
+          builder,
+          copperMining,
+          modifiers,
+          Random(i),
+          const NoSelectedRecipe(),
+        );
+        gemsWithBonus += countGems(builder.state.inventory);
+
+        // Without bonus
+        builder = StateUpdateBuilder(state);
+        rollAndCollectDrops(
+          builder,
+          copperMining,
+          StubModifierProvider(),
+          Random(i),
+          const NoSelectedRecipe(),
+        );
+        gemsWithout += countGems(builder.state.inventory);
+      }
+
+      // With 100% extra gem chance, we should get noticeably more gems.
+      expect(
+        gemsWithBonus,
+        greaterThan(gemsWithout),
+        reason: 'additionalRandomGemChance should increase gem drops',
+      );
+    });
+  });
+
   group('RareDrop with requiredItemId', () {
     test('RareDrop drops when no requiredItemId is set', () {
       const testItemId = MelvorId('melvorD:Normal_Logs');

@@ -549,8 +549,33 @@ bool rollAndCollectDrops(
       )
       .floor();
 
+  // flatAdditionalPrimaryProductQuantity: flat +N to primary product.
+  final flatAdditionalPrimary = modifiers.flatAdditionalPrimaryProductQuantity(
+    skillId: action.skill.id,
+  );
+
+  // basePrimaryProductQuantity: % modifier to base primary product quantity.
+  final basePrimaryPctBonus = modifiers.basePrimaryProductQuantity(
+    skillId: action.skill.id,
+    actionId: action.id.localId,
+  );
+
+  // additionalPrimaryProductChance: % chance for +1 primary product.
+  final additionalPrimaryChance =
+      modifiers.additionalPrimaryProductChance(skillId: action.skill.id) /
+      100.0;
+
+  // flatBasePrimaryProductQuantityChance: flat bonus to primary product
+  // drop chance (for skill-level drops with rate < 1.0 that are primary).
+  final flatPrimaryChanceBonus =
+      modifiers.flatBasePrimaryProductQuantityChance(skillId: action.skill.id) /
+      100.0;
+
   // The primary product IDs are the keys in the action's output map.
   final primaryProductIds = action.outputs.keys.toSet();
+
+  // Track total primary quantity for additionalItemBasedOnPrimaryQuantity.
+  var totalPrimaryQuantity = 0;
 
   for (final drop in registries.drops.allDropsForAction(action, selection)) {
     ItemStack? itemStack;
@@ -562,23 +587,83 @@ bool rollAndCollectDrops(
         masteryLevel: builder.currentMasteryLevel(action),
       );
     } else if (drop is Drop) {
+      final isPrimary = primaryProductIds.contains(drop.itemId);
+
       // For simple drops, apply randomProductChance modifier
       // The modifier is scoped by itemId and skillId in Melvor data
       final modifierBonus = modifiers.randomProductChance(
         itemId: drop.itemId,
         skillId: action.skill.id,
       );
-      final effectiveRate = (drop.rate + modifierBonus / 100.0).clamp(0.0, 1.0);
+      var effectiveRate = (drop.rate + modifierBonus / 100.0).clamp(0.0, 1.0);
+
+      // Apply flatBasePrimaryProductQuantityChance to primary products.
+      if (isPrimary && flatPrimaryChanceBonus > 0) {
+        effectiveRate = (effectiveRate + flatPrimaryChanceBonus).clamp(
+          0.0,
+          1.0,
+        );
+      }
+
+      // Apply additionalRandomSkillItemChance to non-primary drops
+      // (random skill items like Bird Nests).
+      if (!isPrimary) {
+        final randomSkillBonus =
+            modifiers.additionalRandomSkillItemChance(
+              skillId: action.skill.id,
+              actionId: action.id.localId,
+              itemId: drop.itemId,
+            ) /
+            100.0;
+        if (randomSkillBonus > 0) {
+          effectiveRate = (effectiveRate + randomSkillBonus).clamp(0.0, 1.0);
+        }
+      }
 
       // Only roll if rate < 1.0 to preserve random sequence for other drops
       if (effectiveRate >= 1.0 || random.nextDouble() < effectiveRate) {
         itemStack = drop.toItemStack(registries.items);
-        // Apply flat primary product quantity bonus from mastery.
-        if (flatProductBonus > 0 && primaryProductIds.contains(drop.itemId)) {
-          itemStack = ItemStack(
-            itemStack.item,
-            count: itemStack.count + flatProductBonus,
+
+        if (isPrimary) {
+          var qty = itemStack.count;
+
+          // Apply basePrimaryProductQuantity (% modifier to base quantity).
+          if (basePrimaryPctBonus > 0) {
+            qty = (qty * (1.0 + basePrimaryPctBonus / 100.0)).floor();
+          }
+
+          // Apply flat primary product quantity bonus from mastery.
+          if (flatProductBonus > 0) {
+            qty += flatProductBonus;
+          }
+
+          // Apply flatAdditionalPrimaryProductQuantity.
+          if (flatAdditionalPrimary > 0) {
+            qty += flatAdditionalPrimary;
+          }
+
+          // Apply additionalPrimaryProductChance (% chance for +1).
+          if (additionalPrimaryChance > 0 &&
+              random.nextDouble() < additionalPrimaryChance) {
+            qty += 1;
+          }
+
+          if (qty != itemStack.count) {
+            itemStack = ItemStack(itemStack.item, count: qty);
+          }
+          totalPrimaryQuantity += qty;
+        } else {
+          // Apply flatBaseRandomProductQuantity for non-primary drops.
+          final flatRandomBonus = modifiers.flatBaseRandomProductQuantity(
+            skillId: action.skill.id,
+            itemId: drop.itemId,
           );
+          if (flatRandomBonus > 0) {
+            itemStack = ItemStack(
+              itemStack.item,
+              count: itemStack.count + flatRandomBonus,
+            );
+          }
         }
       }
     } else if (drop is ThievingUniqueDrop) {
@@ -630,6 +715,51 @@ bool rollAndCollectDrops(
       final success = builder.addInventory(itemStack);
       if (!success) {
         allItemsAdded = false;
+      }
+    }
+  }
+
+  // Apply additionalItemBasedOnPrimaryQuantityChance: chance to get extra
+  // copies of primary products proportional to total primary quantity.
+  if (totalPrimaryQuantity > 0) {
+    final extraItemChance =
+        modifiers.additionalItemBasedOnPrimaryQuantityChance(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+          itemId: primaryProductIds.firstOrNull,
+        ) /
+        100.0;
+    if (extraItemChance > 0 && random.nextDouble() < extraItemChance) {
+      // Grant extra items equal to the primary quantity produced.
+      for (final productId in primaryProductIds) {
+        final item = registries.items.byId(productId);
+        final bonus = ItemStack(item, count: totalPrimaryQuantity);
+        if (!builder.addInventory(bonus)) {
+          allItemsAdded = false;
+        }
+      }
+    }
+  }
+
+  // Apply additionalRandomGemChance: extra chance to roll the gem table.
+  // Only applies when the action already supports gem drops (mining with
+  // giveGems).
+  if (action is MiningAction && action.giveGems) {
+    final extraGemChance =
+        modifiers.additionalRandomGemChance(
+          skillId: action.skill.id,
+          actionId: action.id.localId,
+        ) /
+        100.0;
+    if (extraGemChance > 0 && random.nextDouble() < extraGemChance) {
+      final gemStack = registries.drops.miningGems.roll(
+        registries.items,
+        random,
+      );
+      if (gemStack != null) {
+        if (!builder.addInventory(gemStack)) {
+          allItemsAdded = false;
+        }
       }
     }
   }
