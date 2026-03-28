@@ -617,6 +617,16 @@ bool rollAndCollectDrops(
         totalMastery: totalMastery,
         hasRequiredItem: hasRequiredItem,
       );
+    } else if (drop is DropChance &&
+        action is MiningAction &&
+        action.giveGems) {
+      // Apply miningGemChance modifier to the gem drop rate.
+      // The modifier is percentage points (e.g., 5 = +5%).
+      final gemBonus = modifiers.miningGemChance / 100.0;
+      final effectiveRate = (drop.rate + gemBonus).clamp(0.0, 1.0);
+      if (random.nextDouble() < effectiveRate) {
+        itemStack = drop.child.roll(registries.items, random);
+      }
     } else {
       // For other Droppable types (DropTable, DropChance), use base roll
       itemStack = drop.roll(registries.items, random);
@@ -948,10 +958,24 @@ bool completeAction(
     builder.markTabletCrafted(action.productId);
   }
 
-  // Apply mining swing damage/depletion. Depletion does not short-circuit
-  // here; _processMiningForeground handles the respawn wait.
+  // Apply mining-specific modifiers.
   if (action is MiningAction) {
-    _completeMiningSwing(builder, action);
+    // bonusCoalMining: grant bonus coal ore when mining any rock.
+    final bonusCoal = modifierProvider.bonusCoalMining;
+    if (bonusCoal > 0) {
+      const coalId = MelvorId('melvorD:Coal_Ore');
+      final coalItem = registries.items.byId(coalId);
+      builder.addInventory(ItemStack(coalItem, count: bonusCoal));
+    }
+
+    // Apply mining swing damage/depletion. Depletion does not short-circuit
+    // here; _processMiningForeground handles the respawn wait.
+    _completeMiningSwing(
+      builder,
+      action,
+      modifiers: modifierProvider,
+      random: random,
+    );
   }
 
   return canRepeatAction;
@@ -1467,6 +1491,14 @@ ForegroundResult _restartOrStop(
             builder.addInventory(ItemStack(rewardItem, count: 1));
           }
           builder.rollDungeonPet(seqContext.sequenceId, random);
+
+          // bonusCoalOnDungeonCompletion: grant bonus coal on completion.
+          final bonusCoal = combatModifiers.bonusCoalOnDungeonCompletion;
+          if (bonusCoal > 0) {
+            const coalId = MelvorId('melvorD:Coal_Ore');
+            final coalItem = builder.registries.items.byId(coalId);
+            builder.addInventory(ItemStack(coalItem, count: bonusCoal));
+          }
         }
       }
 
@@ -1782,16 +1814,44 @@ ForegroundResult _restartOrStop(
 /// Applies mining swing damage. If the node's HP reaches zero, depletes
 /// it and sets the respawn timer. [_processMiningForeground] handles the
 /// respawn wait on the next iteration.
-void _completeMiningSwing(StateUpdateBuilder builder, MiningAction action) {
+void _completeMiningSwing(
+  StateUpdateBuilder builder,
+  MiningAction action, {
+  required ModifierAccessors modifiers,
+  required Random random,
+}) {
+  // noMiningNodeDamageChance: chance to mine without damaging the node.
+  // Scoped by category (ore vs essence).
+  final noDamageChance = modifiers.noMiningNodeDamageChance(
+    categoryId: action.categoryId,
+  );
+  if (noDamageChance > 0 && random.nextDouble() * 100 < noDamageChance) {
+    return; // Node takes no damage this swing.
+  }
+
+  // flatMiningNodeHP: flat bonus to mining node max HP.
+  final flatNodeHP = modifiers.flatMiningNodeHP(actionId: action.id.localId);
+
   final actionState = builder.state.actionState(action.id);
   final miningState = builder.state.miningState.rockState(action.id.localId);
 
   final newTotalHpLost = miningState.totalHpLost + 1;
   final newMiningState = miningState.copyWith(totalHpLost: newTotalHpLost);
-  final currentHp = newMiningState.currentHp(action, actionState.masteryXp);
+  final currentHp = newMiningState.currentHp(
+    action,
+    actionState.masteryXp,
+    flatNodeHPBonus: flatNodeHP,
+  );
 
   if (currentHp <= 0) {
-    builder.depleteResourceNode(action.id, action, newTotalHpLost);
+    // miningNodeRespawnInterval: percentage modifier for respawn time.
+    final respawnMod = modifiers.miningNodeRespawnInterval;
+    builder.depleteResourceNode(
+      action.id,
+      action,
+      newTotalHpLost,
+      respawnIntervalModifier: respawnMod,
+    );
     return;
   }
   builder.damageResourceNode(action.id, newTotalHpLost);

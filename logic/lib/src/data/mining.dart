@@ -35,7 +35,9 @@ class MiningAction extends SkillAction {
     required this.hasPassiveRegen,
     required this.giveGems,
     required this.media,
+    MelvorId? miningCategoryId,
   }) : respawnTime = Duration(seconds: respawnSeconds),
+       _categoryId = miningCategoryId,
        super(skill: Skill.mining, duration: _miningSwingDuration);
 
   factory MiningAction.fromJson(
@@ -67,11 +69,18 @@ class MiningAction extends SkillAction {
       hasPassiveRegen: json['hasPassiveRegen'] as bool? ?? true,
       giveGems: json['giveGems'] as bool? ?? true,
       media: json['media'] as String,
+      miningCategoryId: category != null ? MelvorId.fromJson(category) : null,
     );
   }
 
   /// The type of rock (ore or essence).
   final RockType rockType;
+
+  /// The Melvor mining category (e.g., "melvorD:Ore", "melvorD:Essence").
+  final MelvorId? _categoryId;
+
+  @override
+  MelvorId? get categoryId => _categoryId;
 
   /// Time for the rock to respawn after being depleted.
   final Duration respawnTime;
@@ -94,9 +103,9 @@ class MiningAction extends SkillAction {
   /// Number of ticks for the rock to respawn.
   int get respawnTicks => ticksFromDuration(respawnTime);
 
-  /// Rock HP = 5 + Mastery Level + Boosts
-  /// For now, boosts are 0
-  int maxHpForMasteryLevel(int masteryLevel) => 5 + masteryLevel;
+  /// Rock HP = 5 + Mastery Level + flatMiningNodeHP modifier
+  int maxHpForMasteryLevel(int masteryLevel, {int flatNodeHPBonus = 0}) =>
+      5 + masteryLevel + flatNodeHPBonus;
 
   /// Returns progress (0.0 to 1.0) toward respawn completion, or null if
   /// not respawning.
