@@ -2254,10 +2254,20 @@ class GlobalState {
 
   GlobalState sellItem(ItemStack stack) {
     final newInventory = inventory.removing(stack);
-    return addCurrency(
-      Currency.gp,
-      stack.sellsFor,
-    ).copyWith(inventory: newInventory);
+    var gp = stack.sellsFor;
+
+    // currencyGainFromLogSales: percentage bonus when selling logs.
+    if (registries.woodcutting.isLog(stack.item.id)) {
+      final mods = createGlobalModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+      final pct = mods.currencyGainFromLogSales;
+      if (pct > 0) {
+        gp = (gp * (1.0 + pct / 100.0)).round();
+      }
+    }
+
+    return addCurrency(Currency.gp, gp).copyWith(inventory: newInventory);
   }
 
   /// Returns the XP added per mastery token claim for [skill] (0.1% of max).

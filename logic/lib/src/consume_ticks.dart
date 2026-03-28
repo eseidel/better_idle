@@ -1272,6 +1272,25 @@ ForegroundResult _restartOrStop(
   return (ForegroundResult.continued, ticksToApply);
 }
 
+/// Calculates the adjusted GP from a monster kill, applying percentage
+/// modifiers: currencyGainFromCombat, currencyGainFromMonsterDrops,
+/// and currencyGainFromSlayerTaskMonsterDrops (when on-task).
+int _adjustedMonsterGpDrop(
+  int baseGp,
+  ModifierAccessors mods, {
+  required bool isOnSlayerTask,
+}) {
+  if (baseGp <= 0) return baseGp;
+  final combatPct = mods.currencyGainFromCombat;
+  final monsterPct = mods.currencyGainFromMonsterDrops;
+  final slayerPct = isOnSlayerTask
+      ? mods.currencyGainFromSlayerTaskMonsterDrops
+      : 0;
+  final totalPct = combatPct + monsterPct + slayerPct;
+  if (totalPct == 0) return baseGp;
+  return (baseGp * (1.0 + totalPct / 100.0)).round();
+}
+
 /// Processes one iteration of a CombatAction foreground.
 /// Returns how many ticks were consumed and whether to continue.
 (ForegroundResult, Tick) _processCombatForeground(
@@ -1406,6 +1425,15 @@ ForegroundResult _restartOrStop(
       );
       monsterHp -= damage;
 
+      // flatCurrencyGainOnEnemyHit: flat GP per successful hit.
+      final hitModifiers = builder.state.createCombatModifierProvider(
+        conditionContext: combatContext,
+      );
+      final flatGpOnHit = hitModifiers.flatCurrencyGainOnEnemyHit;
+      if (flatGpOnHit > 0) {
+        builder.addCurrency(Currency.gp, flatGpOnHit);
+      }
+
       // Grant combat XP based on damage dealt and attack style
       final xpGrant = CombatXpGrant.fromDamage(
         damage,
@@ -1435,15 +1463,30 @@ ForegroundResult _restartOrStop(
         ? builder.registries.dungeons.byId(seqContext!.sequenceId)
         : null;
 
-    final gpDrop = action.rollGpDrop(random);
-    builder.addCurrency(Currency.gp, gpDrop);
+    // Create combat modifier provider early -- used for GP, looting, etc.
+    final combatModifiers = builder.state.createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+
+    // Determine slayer task status for modifier bonuses.
+    final slayerTask = builder.state.slayerTask;
+    final isOnSlayerTask =
+        slayerTask != null && slayerTask.monsterId == action.id.localId;
+
+    // Grant GP drop with combat currency modifiers applied.
+    final baseGpDrop = action.rollGpDrop(random);
+    final adjustedGp = _adjustedMonsterGpDrop(
+      baseGpDrop,
+      combatModifiers,
+      isOnSlayerTask: isOnSlayerTask,
+    );
+    // Add flat GP bonus per monster kill.
+    final flatGp = combatModifiers.flatCurrencyGainFromMonsterDrops;
+    builder.addCurrency(Currency.gp, adjustedGp + flatGp);
 
     // Check if the player has the Amulet of Looting equipped.
     // When active, drops go directly to inventory instead of loot.
     // If inventory is full, items fall back to the loot container.
-    final combatModifiers = builder.state.createCombatModifierProvider(
-      conditionContext: ConditionContext.empty,
-    );
     final hasAutoLooting = combatModifiers.autoLooting > 0;
 
     // Drop bones if the monster has them (bones stack in loot).
@@ -1542,29 +1585,27 @@ ForegroundResult _restartOrStop(
     };
 
     // Handle slayer task progression and per-kill rewards.
-    final currentTask = builder.state.slayerTask;
-    final isOnTask =
-        currentTask != null && currentTask.monsterId == action.id.localId;
+    // (isOnSlayerTask and slayerTask determined earlier for GP modifiers.)
 
     // Grant slayer XP and SC per kill (wiki formula):
     //   On-task, in slayer area: 15% XP, 10% SC
     //   On-task, outside area:   10% XP, 10% SC
     //   Off-task, in slayer area: 5% XP,  0% SC
     //   Off-task, outside area:   0% XP,  0% SC
-    if (isOnTask || isInSlayerArea) {
-      final xpPercent = (isOnTask ? 10 : 0) + (isInSlayerArea ? 5 : 0);
+    if (isOnSlayerTask || isInSlayerArea) {
+      final xpPercent = (isOnSlayerTask ? 10 : 0) + (isInSlayerArea ? 5 : 0);
       final slayerXp = action.maxHp * xpPercent ~/ 100;
       builder.addSkillXp(Skill.slayer, slayerXp);
     }
-    if (isOnTask) {
+    if (isOnSlayerTask) {
       // SC = 10% of monster max HP per on-task kill.
       final sc = action.maxHp * 10 ~/ 100;
       builder.addCurrency(Currency.slayerCoins, sc);
     }
 
     // Track kill count and handle task completion.
-    if (isOnTask) {
-      final updatedTask = currentTask.recordKill();
+    if (isOnSlayerTask) {
+      final updatedTask = slayerTask.recordKill();
 
       if (updatedTask.isComplete) {
         final category = builder.registries.slayer.categoryById(
