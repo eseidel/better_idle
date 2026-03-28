@@ -39,6 +39,13 @@ import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
 
+/// Applies a percentage bonus to [base], where [percent] is in percentage
+/// points (e.g. 50 means +50%). Returns [base] unchanged when [percent] is 0.
+int applyPercentBonus(int base, int percent) {
+  if (percent == 0) return base;
+  return (base * (1.0 + percent / 100.0)).round();
+}
+
 /// The type of combat the player is using.
 ///
 /// Determines which skill levels affect combat calculations and which
@@ -2257,14 +2264,11 @@ class GlobalState {
     var gp = stack.sellsFor;
 
     // currencyGainFromLogSales: percentage bonus when selling logs.
-    if (registries.woodcutting.isLog(stack.item.id)) {
-      final mods = createGlobalModifierProvider(
+    if (stack.item.category == 'Woodcutting') {
+      final modifiers = createGlobalModifierProvider(
         conditionContext: ConditionContext.empty,
       );
-      final pct = mods.currencyGainFromLogSales;
-      if (pct > 0) {
-        gp = (gp * (1.0 + pct / 100.0)).round();
-      }
+      gp = applyPercentBonus(gp, modifiers.currencyGainFromLogSales);
     }
 
     return addCurrency(Currency.gp, gp).copyWith(inventory: newInventory);

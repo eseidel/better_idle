@@ -1272,23 +1272,22 @@ ForegroundResult _restartOrStop(
   return (ForegroundResult.continued, ticksToApply);
 }
 
-/// Calculates the adjusted GP from a monster kill, applying percentage
-/// modifiers: currencyGainFromCombat, currencyGainFromMonsterDrops,
+/// Calculates the adjusted currency amount from a monster kill, applying
+/// percentage modifiers: currencyGainFromCombat, currencyGainFromMonsterDrops,
 /// and currencyGainFromSlayerTaskMonsterDrops (when on-task).
-int _adjustedMonsterGpDrop(
-  int baseGp,
-  ModifierAccessors mods, {
+int _adjustedCombatCurrency(
+  int base,
+  ModifierAccessors modifiers, {
   required bool isOnSlayerTask,
 }) {
-  if (baseGp <= 0) return baseGp;
-  final combatPct = mods.currencyGainFromCombat;
-  final monsterPct = mods.currencyGainFromMonsterDrops;
+  if (base <= 0) return base;
+  final combatPct = modifiers.currencyGainFromCombat;
+  final monsterPct = modifiers.currencyGainFromMonsterDrops;
   final slayerPct = isOnSlayerTask
-      ? mods.currencyGainFromSlayerTaskMonsterDrops
+      ? modifiers.currencyGainFromSlayerTaskMonsterDrops
       : 0;
   final totalPct = combatPct + monsterPct + slayerPct;
-  if (totalPct == 0) return baseGp;
-  return (baseGp * (1.0 + totalPct / 100.0)).round();
+  return applyPercentBonus(base, totalPct);
 }
 
 /// Processes one iteration of a CombatAction foreground.
@@ -1475,7 +1474,7 @@ int _adjustedMonsterGpDrop(
 
     // Grant GP drop with combat currency modifiers applied.
     final baseGpDrop = action.rollGpDrop(random);
-    final adjustedGp = _adjustedMonsterGpDrop(
+    final adjustedGp = _adjustedCombatCurrency(
       baseGpDrop,
       combatModifiers,
       isOnSlayerTask: isOnSlayerTask,
@@ -1598,8 +1597,13 @@ int _adjustedMonsterGpDrop(
       builder.addSkillXp(Skill.slayer, slayerXp);
     }
     if (isOnSlayerTask) {
-      // SC = 10% of monster max HP per on-task kill.
-      final sc = action.maxHp * 10 ~/ 100;
+      // SC = 10% of monster max HP per on-task kill, with currency modifiers.
+      final baseSc = action.maxHp * 10 ~/ 100;
+      final sc = _adjustedCombatCurrency(
+        baseSc,
+        combatModifiers,
+        isOnSlayerTask: isOnSlayerTask,
+      );
       builder.addCurrency(Currency.slayerCoins, sc);
     }
 

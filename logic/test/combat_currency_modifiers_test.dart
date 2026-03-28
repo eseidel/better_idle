@@ -55,6 +55,17 @@ int _runCombatForGp(
   return builder.build().currency(Currency.gp);
 }
 
+/// Runs combat for a fixed number of ticks and returns slayer coins earned.
+int _runCombatForSc(
+  GlobalState initialState,
+  Random random, {
+  int ticks = 50000,
+}) {
+  final builder = StateUpdateBuilder(initialState);
+  consumeTicks(builder, ticks, random: random);
+  return builder.build().currency(Currency.slayerCoins);
+}
+
 void main() {
   setUpAll(loadTestRegistries);
 
@@ -280,16 +291,64 @@ void main() {
     });
   });
 
-  group('WoodcuttingRegistry.isLog', () {
-    test('returns true for woodcutting products', () {
+  group('item category for log detection', () {
+    test('woodcutting products have Woodcutting category', () {
       for (final tree in testRegistries.woodcutting.actions) {
-        expect(testRegistries.woodcutting.isLog(tree.productId), isTrue);
+        final item = testRegistries.items.byId(tree.productId);
+        expect(item.category, 'Woodcutting');
       }
     });
 
-    test('returns false for non-log items', () {
+    test('non-log items do not have Woodcutting category', () {
       final bronzeSword = testRegistries.items.byName('Bronze Sword');
-      expect(testRegistries.woodcutting.isLog(bronzeSword.id), isFalse);
+      expect(bronzeSword.category, isNot('Woodcutting'));
+    });
+  });
+
+  group('currency modifiers on slayer coins', () {
+    test('currencyGainFromCombat increases slayer coins', () {
+      final ring = _testRing(const [
+        ModifierData(
+          name: 'currencyGainFromCombat',
+          entries: [ModifierEntry(value: 100)],
+        ),
+      ]);
+      final task = SlayerTask(
+        categoryId: const MelvorId('melvorF:SlayerEasy'),
+        monsterId: plant.id.localId,
+        killsRequired: 99999,
+        killsCompleted: 0,
+      );
+
+      final baseSc = _runCombatForSc(
+        _startCombatWithRing(
+          _testRing(const []),
+          plant,
+          Random(42),
+          slayerTask: task,
+        ),
+        Random(42),
+      );
+      final modSc = _runCombatForSc(
+        _startCombatWithRing(ring, plant, Random(42), slayerTask: task),
+        Random(42),
+      );
+
+      expect(modSc, greaterThan(baseSc));
+    });
+  });
+
+  group('applyPercentBonus', () {
+    test('returns base when percent is 0', () {
+      expect(applyPercentBonus(100, 0), 100);
+    });
+
+    test('applies positive percentage', () {
+      expect(applyPercentBonus(100, 50), 150);
+    });
+
+    test('applies negative percentage', () {
+      expect(applyPercentBonus(100, -25), 75);
     });
   });
 }
