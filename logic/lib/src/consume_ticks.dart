@@ -942,7 +942,7 @@ bool completeAction(
     ..addSkillXp(action.skill, perAction.xp)
     ..addActionMasteryXp(action.id, perAction.masteryXp)
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp)
-    ..consumeSummonChargesForSkill(action)
+    ..consumeSummonChargesForSkill(action, random)
     ..consumePotionCharge(action, random);
 
   // woodcuttingXPAddedAsFiremakingXP: percentage of WC XP as FM XP.
@@ -985,25 +985,20 @@ bool completeAction(
     if (doubleChance > 0 && rc.isRune(action.productId)) {
       if (random.nextDouble() < doubleChance / 100.0) {
         final item = registries.items.byId(action.productId);
-        builder.addInventory(
-          ItemStack(item, count: action.baseQuantity),
-        );
+        builder.addInventory(ItemStack(item, count: action.baseQuantity));
       }
     }
     // elementalRuneChance/Quantity: bonus elemental runes.
     final elemChance = modifierProvider.elementalRuneChance;
-    if (elemChance > 0 &&
-        rc.isElementalRune(action.productId)) {
+    if (elemChance > 0 && rc.isElementalRune(action.productId)) {
       if (random.nextDouble() < elemChance / 100.0) {
-        final qty =
-            max(1, modifierProvider.elementalRuneQuantity);
+        final qty = max(1, modifierProvider.elementalRuneQuantity);
         final item = registries.items.byId(action.productId);
         builder.addInventory(ItemStack(item, count: qty));
       }
     }
     // giveRandomComboRunesRunecrafting: random combo runes.
-    final comboChance =
-        modifierProvider.giveRandomComboRunesRunecrafting;
+    final comboChance = modifierProvider.giveRandomComboRunesRunecrafting;
     if (comboChance > 0 && rc.comboRuneIds.isNotEmpty) {
       if (random.nextDouble() < comboChance / 100.0) {
         final list = rc.comboRuneIds.toList();
@@ -1420,6 +1415,7 @@ ForegroundResult _restartOrStop(
     builder.consumeSummonChargesForCombat(
       action,
       attackSpeedSeconds: pStats.attackSpeed,
+      random: random,
     );
 
     // Consume consumable if equipped with PlayerAttack trigger

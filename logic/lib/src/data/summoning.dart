@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/melvor_id.dart';
@@ -23,6 +25,7 @@ class SummoningAction extends SkillAction {
     required this.tier,
     required this.markMedia,
     required this.markSkillIds,
+    required this.shardItemIds,
     super.alternativeRecipes,
   }) : super(skill: Skill.summoning, duration: _summoningDuration);
 
@@ -106,6 +109,7 @@ class SummoningAction extends SkillAction {
       tier: tier,
       markMedia: json['markMedia'] as String?,
       markSkillIds: markSkillIds,
+      shardItemIds: shardInputs.keys.toSet(),
     );
   }
 
@@ -122,6 +126,8 @@ class SummoningAction extends SkillAction {
   /// When performing actions in these skills, players have a chance to
   /// discover marks for this familiar.
   final List<MelvorId> markSkillIds;
+
+  final Set<MelvorId> shardItemIds;
 
   /// The summon/recipe ID for this familiar (e.g., "melvorF:GolbinThief").
   /// This is used for synergy lookups.
@@ -192,5 +198,42 @@ class SummoningRegistry {
     }
 
     return false;
+  }
+
+  static Map<MelvorId, int> applyShardCostModifiers(
+    Map<MelvorId, int> inputs,
+    Set<MelvorId> shardItemIds, {
+    required int flatShardCost,
+    required int flatTierShardCost,
+  }) {
+    final totalFlat = flatShardCost + flatTierShardCost;
+    if (totalFlat == 0) return inputs;
+    final result = <MelvorId, int>{};
+    for (final entry in inputs.entries) {
+      if (shardItemIds.contains(entry.key)) {
+        result[entry.key] = math.max(1, entry.value + totalFlat);
+      } else {
+        result[entry.key] = entry.value;
+      }
+    }
+    return result;
+  }
+
+  static Map<MelvorId, int> applyNonShardCostReduction(
+    Map<MelvorId, int> inputs,
+    Set<MelvorId> shardItemIds,
+    int reductionPercent,
+  ) {
+    if (reductionPercent <= 0) return inputs;
+    final result = <MelvorId, int>{};
+    for (final entry in inputs.entries) {
+      if (!shardItemIds.contains(entry.key)) {
+        final reduced = (entry.value * (1 - reductionPercent / 100)).floor();
+        result[entry.key] = math.max(1, reduced);
+      } else {
+        result[entry.key] = entry.value;
+      }
+    }
+    return result;
   }
 }

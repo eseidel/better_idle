@@ -676,10 +676,9 @@ class StateUpdateBuilder {
   /// XP = (Action Time × Tablet Level × 10) / (Tablet Level + 10)
   /// where Tablet Level is the summoning level required to create the tablet.
   ///
-  // TODO(eseidel): Add charge preservation modifier support.
-  void consumeSummonChargesForSkill(SkillAction action) {
+  void consumeSummonChargesForSkill(SkillAction action, Random random) {
     final actionTimeSeconds = action.meanDuration.inMilliseconds / 1000.0;
-    _consumeSummonChargesInternal(action, actionTimeSeconds);
+    _consumeSummonChargesInternal(action, actionTimeSeconds, random);
   }
 
   /// Consumes charges from equipped summoning tablets relevant to combat.
@@ -690,12 +689,24 @@ class StateUpdateBuilder {
   void consumeSummonChargesForCombat(
     CombatAction action, {
     required double attackSpeedSeconds,
+    required Random random,
   }) {
-    _consumeSummonChargesInternal(action, attackSpeedSeconds);
+    _consumeSummonChargesInternal(action, attackSpeedSeconds, random);
   }
 
-  void _consumeSummonChargesInternal(Action action, double actionTimeSeconds) {
+  void _consumeSummonChargesInternal(
+    Action action,
+    double actionTimeSeconds,
+    Random random,
+  ) {
     var equipment = _state.equipment;
+
+    final combatModifiers = _state.createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final preserveChance = combatModifiers.summoningChargePreservationChance;
+    final chargesPreserved =
+        preserveChance > 0 && random.nextDouble() * 100 < preserveChance;
 
     // Check if an active synergy applies to this action type.
     final synergy = _state.getActiveSynergy();
@@ -731,7 +742,9 @@ class StateUpdateBuilder {
         addSkillXp(Skill.summoning, (xpPerCharge * charges).round());
       }
 
-      equipment = equipment.consumeSummonCharges(slot, charges);
+      if (!chargesPreserved) {
+        equipment = equipment.consumeSummonCharges(slot, charges);
+      }
     }
 
     _state = _state.copyWith(equipment: equipment);
