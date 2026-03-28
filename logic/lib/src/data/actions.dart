@@ -338,16 +338,22 @@ class SkillAction extends Action {
 
   /// Returns the item doubling probability (0.0-1.0) for this action.
   ///
-  /// Queries the skillItemDoublingChance modifier with the action's skill,
-  /// action ID, and category, then converts from percentage to probability.
+  /// Combines skillItemDoublingChance (skill-scoped), globalItemDoublingChance
+  /// (unscoped), and doubleItemsSkill (skill/action/category-scoped).
+  /// All three are percentage points that stack additively.
   double doublingChance(ModifierAccessors modifiers) {
-    return (modifiers.skillItemDoublingChance(
-              skillId: skill.id,
-              actionId: id.localId,
-              categoryId: categoryId,
-            ) /
-            100.0)
-        .clamp(0.0, 1.0);
+    final skillChance = modifiers.skillItemDoublingChance(
+      skillId: skill.id,
+      actionId: id.localId,
+      categoryId: categoryId,
+    );
+    final globalChance = modifiers.globalItemDoublingChance;
+    final doubleItems = modifiers.doubleItemsSkill(
+      skillId: skill.id,
+      actionId: id.localId,
+      categoryId: categoryId,
+    );
+    return ((skillChance + globalChance + doubleItems) / 100.0).clamp(0.0, 1.0);
   }
 }
 

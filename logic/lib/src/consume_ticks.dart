@@ -506,6 +506,16 @@ XpPerAction xpPerAction(
   // Apply skillXP modifier (percentage points, e.g., -10 = 10% reduction)
   var xpModifier = modifiers.skillXP(skillId: action.skill.id);
 
+  // nonCombatSkillXP: percentage XP bonus for all non-combat skills.
+  if (!action.skill.isCombatSkill) {
+    xpModifier += modifiers.nonCombatSkillXP;
+  }
+
+  // altMagicSkillXP: percentage XP bonus for alt magic specifically.
+  if (action.skill == Skill.altMagic) {
+    xpModifier += modifiers.altMagicSkillXP;
+  }
+
   // Apply bonfire XP bonus for firemaking actions
   if (action.skill == Skill.firemaking && state.bonfire.isActive) {
     xpModifier += state.bonfire.xpBonus;
@@ -669,11 +679,21 @@ bool rollAndCollectDrops(
   final masteryTokenDrop = registries.drops.masteryTokenForSkill(action.skill);
   if (masteryTokenDrop != null) {
     final unlockedActions = builder.state.unlockedActionsCount(action.skill);
-    final tokenStack = masteryTokenDrop.rollWithContext(
+    var tokenStack = masteryTokenDrop.rollWithContext(
       registries.items,
       random,
       unlockedActions: unlockedActions,
     );
+
+    // flatMasteryTokens: flat bonus tokens added when a token drops.
+    final flatBonus = modifiers.flatMasteryTokens;
+    if (tokenStack != null && flatBonus > 0) {
+      tokenStack = ItemStack(
+        tokenStack.item,
+        count: tokenStack.count + flatBonus,
+      );
+    }
+
     if (tokenStack != null) {
       final success = builder.addInventory(tokenStack);
       if (!success) {
@@ -1446,12 +1466,26 @@ ForegroundResult _restartOrStop(
     );
     final hasAutoLooting = combatModifiers.autoLooting > 0;
 
+    // combatLootDoublingChance: percentage chance to double combat loot.
+    final combatDoublingChance =
+        combatModifiers.combatLootDoublingChance / 100.0;
+
+    // Helper to apply combat loot doubling to an item stack.
+    ItemStack applyLootDoubling(ItemStack stack) {
+      if (combatDoublingChance > 0 &&
+          random.nextDouble() < combatDoublingChance) {
+        return ItemStack(stack.item, count: stack.count * 2);
+      }
+      return stack;
+    }
+
     // Drop bones if the monster has them (bones stack in loot).
     // In dungeons, bones only drop when the dungeon's dropBones flag is true.
     final bones = action.bones;
     if (bones != null && (dungeon?.dropBones ?? true)) {
       final item = builder.registries.items.byId(bones.itemId);
-      final stack = ItemStack(item, count: bones.quantity);
+      var stack = ItemStack(item, count: bones.quantity);
+      stack = applyLootDoubling(stack);
       if (hasAutoLooting) {
         if (!builder.tryAddToInventory(stack)) {
           builder.addToLoot(stack, isBones: true);
@@ -1466,8 +1500,9 @@ ForegroundResult _restartOrStop(
     if (!isDungeon) {
       final lootTable = action.lootTable;
       if (lootTable != null) {
-        final loot = lootTable.roll(builder.registries.items, random);
+        var loot = lootTable.roll(builder.registries.items, random);
         if (loot != null) {
+          loot = applyLootDoubling(loot);
           if (hasAutoLooting) {
             if (!builder.tryAddToInventory(loot)) {
               builder.addToLoot(loot, isBones: false);
