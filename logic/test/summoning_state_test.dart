@@ -1662,4 +1662,139 @@ void main() {
       expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon2), 10);
     });
   });
+
+  group('SummoningRegistry.applyShardCostModifiers', () {
+    test('reduces shard costs by flat amount', () {
+      const shardId = MelvorId('melvorF:Summoning_Shard_Green');
+      const nonShardId = MelvorId('melvorD:Normal_Logs');
+      final inputs = {shardId: 6, nonShardId: 6};
+      final result = SummoningRegistry.applyShardCostModifiers(
+        inputs,
+        {shardId},
+        flatShardCost: -2,
+        flatTierShardCost: 0,
+      );
+      expect(result[shardId], 4);
+      expect(result[nonShardId], 6);
+    });
+    test('combines general and tier-specific flat costs', () {
+      const shardId = MelvorId('melvorF:Summoning_Shard_Green');
+      final result = SummoningRegistry.applyShardCostModifiers(
+        {shardId: 10},
+        {shardId},
+        flatShardCost: -3,
+        flatTierShardCost: -2,
+      );
+      expect(result[shardId], 5);
+    });
+    test('clamps shard cost to minimum of 1', () {
+      const shardId = MelvorId('melvorF:Summoning_Shard_Green');
+      final result = SummoningRegistry.applyShardCostModifiers(
+        {shardId: 2},
+        {shardId},
+        flatShardCost: -5,
+        flatTierShardCost: -5,
+      );
+      expect(result[shardId], 1);
+    });
+    test('returns unchanged when flat costs are zero', () {
+      const shardId = MelvorId('melvorF:Summoning_Shard_Green');
+      final inputs = {shardId: 6};
+      final result = SummoningRegistry.applyShardCostModifiers(
+        inputs,
+        {shardId},
+        flatShardCost: 0,
+        flatTierShardCost: 0,
+      );
+      expect(identical(result, inputs), isTrue);
+    });
+  });
+  group('SummoningRegistry.applyNonShardCostReduction', () {
+    test('reduces non-shard cost by percentage', () {
+      const shardId = MelvorId('melvorF:Summoning_Shard_Green');
+      const nonShardId = MelvorId('melvorD:Normal_Logs');
+      final inputs = {shardId: 6, nonShardId: 10};
+      final result = SummoningRegistry.applyNonShardCostReduction(inputs, {
+        shardId,
+      }, 50);
+      expect(result[shardId], 6);
+      expect(result[nonShardId], 5);
+    });
+    test('clamps non-shard cost to minimum of 1', () {
+      const shardId = MelvorId('melvorF:Summoning_Shard_Green');
+      const nonShardId = MelvorId('melvorD:Normal_Logs');
+      final result = SummoningRegistry.applyNonShardCostReduction(
+        {shardId: 6, nonShardId: 2},
+        {shardId},
+        100,
+      );
+      expect(result[nonShardId], 1);
+    });
+    test('returns unchanged when reduction is zero', () {
+      const shardId = MelvorId('melvorF:Summoning_Shard_Green');
+      final inputs = {shardId: 6};
+      final result = SummoningRegistry.applyNonShardCostReduction(inputs, {
+        shardId,
+      }, 0);
+      expect(identical(result, inputs), isTrue);
+    });
+  });
+  group('SummoningAction.shardItemIds', () {
+    test('tracks shard item IDs from itemCosts', () {
+      final action = SummoningAction.fromJson({
+        'id': 'TestFamiliar',
+        'level': 1,
+        'productID': 'melvorF:Test_Familiar',
+        'baseQuantity': 25,
+        'baseExperience': 5,
+        'itemCosts': [
+          {'id': 'melvorF:Summoning_Shard_Green', 'quantity': 6},
+          {'id': 'melvorF:Summoning_Shard_Blue', 'quantity': 3},
+        ],
+        'nonShardItemCosts': ['melvorD:Normal_Logs'],
+        'tier': 1,
+        'skillIDs': ['melvorD:Woodcutting'],
+      }, namespace: 'melvorF');
+      expect(action.shardItemIds, {
+        const MelvorId('melvorF:Summoning_Shard_Green'),
+        const MelvorId('melvorF:Summoning_Shard_Blue'),
+      });
+    });
+  });
+  group('summoningChargePreservationChance', () {
+    late Item entTabletItem;
+    late SkillAction wcAction;
+    setUp(() {
+      final entAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.markSkillIds.contains(Skill.woodcutting.id),
+      );
+      entTabletItem = testItems.byId(entAction.productId);
+      wcAction = testRegistries.woodcuttingAction('Normal Tree');
+    });
+    test('charges consumed without preservation modifier', () {
+      const equipment = Equipment.empty();
+      final (equipped, _) = equipment.equipSummonTablet(
+        entTabletItem,
+        EquipmentSlot.summon1,
+        10,
+      );
+      var inventory = Inventory.empty(testItems);
+      for (final input in wcAction.inputs.entries) {
+        final item = testItems.byId(input.key);
+        inventory = inventory.adding(ItemStack(item, count: input.value * 100));
+      }
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: equipped,
+        inventory: inventory,
+      ).startAction(wcAction, random: Random(42));
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 1000, random: Random(42));
+      final newState = builder.build();
+      expect(
+        newState.equipment.summonCountInSlot(EquipmentSlot.summon1),
+        lessThan(10),
+      );
+    });
+  });
 }

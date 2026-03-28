@@ -348,16 +348,37 @@ class StateUpdateBuilder {
   /// Restarts the current bonfire by consuming logs and resetting the timer.
   /// Returns true if restart was successful, false if not enough logs.
   bool restartBonfire(FiremakingAction bonfireAction) {
+    final modifiers = _state.createActionModifierProvider(
+      bonfireAction,
+      conditionContext: ConditionContext.empty,
+      consumesOnType: null,
+    );
+    // freeBonfires comes from potions, so pass skillId explicitly.
+    final isFree =
+        modifiers.getModifier('freeBonfires', skillId: Skill.firemaking.id) > 0;
     final logItem = registries.items.byId(bonfireAction.logId);
-    final logCount = _state.inventory.countOfItem(logItem);
-    if (logCount < GlobalState.bonfireLogCost) return false;
 
-    // Consume logs and reset bonfire timer
-    final bonfireTicks = ticksFromDuration(bonfireAction.bonfireInterval);
+    if (!isFree) {
+      final logCount = _state.inventory.countOfItem(logItem);
+      if (logCount < GlobalState.bonfireLogCost) return false;
+    }
+
+    // firemakingBonfireInterval: percentage modifier on bonfire duration.
+    final intervalMod = modifiers
+        .getModifier('firemakingBonfireInterval', skillId: Skill.firemaking.id)
+        .toInt();
+    final baseTicks = ticksFromDuration(bonfireAction.bonfireInterval);
+    final bonfireTicks = (baseTicks * (1.0 + intervalMod / 100.0))
+        .round()
+        .clamp(1, baseTicks * 10);
+
+    final newInventory = isFree
+        ? _state.inventory
+        : _state.inventory.removing(
+            ItemStack(logItem, count: GlobalState.bonfireLogCost),
+          );
     _state = _state.copyWith(
-      inventory: _state.inventory.removing(
-        ItemStack(logItem, count: GlobalState.bonfireLogCost),
-      ),
+      inventory: newInventory,
       bonfire: BonfireState(
         actionId: bonfireAction.id,
         ticksRemaining: bonfireTicks,
@@ -655,10 +676,9 @@ class StateUpdateBuilder {
   /// XP = (Action Time × Tablet Level × 10) / (Tablet Level + 10)
   /// where Tablet Level is the summoning level required to create the tablet.
   ///
-  // TODO(eseidel): Add charge preservation modifier support.
-  void consumeSummonChargesForSkill(SkillAction action) {
+  void consumeSummonChargesForSkill(SkillAction action, Random random) {
     final actionTimeSeconds = action.meanDuration.inMilliseconds / 1000.0;
-    _consumeSummonChargesInternal(action, actionTimeSeconds);
+    _consumeSummonChargesInternal(action, actionTimeSeconds, random);
   }
 
   /// Consumes charges from equipped summoning tablets relevant to combat.
@@ -669,12 +689,24 @@ class StateUpdateBuilder {
   void consumeSummonChargesForCombat(
     CombatAction action, {
     required double attackSpeedSeconds,
+    required Random random,
   }) {
-    _consumeSummonChargesInternal(action, attackSpeedSeconds);
+    _consumeSummonChargesInternal(action, attackSpeedSeconds, random);
   }
 
-  void _consumeSummonChargesInternal(Action action, double actionTimeSeconds) {
+  void _consumeSummonChargesInternal(
+    Action action,
+    double actionTimeSeconds,
+    Random random,
+  ) {
     var equipment = _state.equipment;
+
+    final combatModifiers = _state.createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+    final preserveChance = combatModifiers.summoningChargePreservationChance;
+    final chargesPreserved =
+        preserveChance > 0 && random.nextDouble() * 100 < preserveChance;
 
     // Check if an active synergy applies to this action type.
     final synergy = _state.getActiveSynergy();
@@ -710,7 +742,9 @@ class StateUpdateBuilder {
         addSkillXp(Skill.summoning, (xpPerCharge * charges).round());
       }
 
-      equipment = equipment.consumeSummonCharges(slot, charges);
+      if (!chargesPreserved) {
+        equipment = equipment.consumeSummonCharges(slot, charges);
+      }
     }
 
     _state = _state.copyWith(equipment: equipment);

@@ -1057,18 +1057,17 @@ class GlobalState {
 
   /// Returns the effective inputs for a skill action, applying any cost
   /// reduction modifiers (e.g., runecraftingRuneCostReduction).
-  // TODO(future): Also apply nonShardSummoningCostReduction and
-  // agilityObstacleItemCost modifiers here.
+  // TODO(future): Also apply agilityObstacleItemCost modifier here.
   Map<MelvorId, int> effectiveInputs(SkillAction action) {
     final actionStateVal = actionState(action.id);
     final selection = actionStateVal.recipeSelection(action);
     var inputs = action.inputsForRecipe(selection);
+    final modifiers = createActionModifierProvider(
+      action,
+      conditionContext: ConditionContext.empty,
+      consumesOnType: null,
+    );
     if (action is RunecraftingAction) {
-      final modifiers = createActionModifierProvider(
-        action,
-        conditionContext: ConditionContext.empty,
-        consumesOnType: null,
-      );
       final reduction = modifiers.runecraftingRuneCostReduction(
         skillId: action.skill.id,
         actionId: action.id.localId,
@@ -1077,6 +1076,31 @@ class GlobalState {
       inputs = registries.runecrafting.applyRuneCostReduction(
         inputs,
         reduction,
+      );
+    }
+    if (action is SummoningAction) {
+      final flatShardCost = modifiers.flatSummoningShardCost(
+        actionId: action.id.localId,
+      );
+      final flatTierShardCost = switch (action.tier) {
+        1 => modifiers.flatTier1SummoningShardCost,
+        2 => modifiers.flatTier2SummoningShardCost,
+        3 => modifiers.flatTier3SummoningShardCost,
+        _ => 0,
+      };
+      inputs = SummoningRegistry.applyShardCostModifiers(
+        inputs,
+        action.shardItemIds,
+        flatShardCost: flatShardCost,
+        flatTierShardCost: flatTierShardCost,
+      );
+      final nonShardReduction = modifiers.nonShardSummoningCostReduction(
+        actionId: action.id.localId,
+      );
+      inputs = SummoningRegistry.applyNonShardCostReduction(
+        inputs,
+        action.shardItemIds,
+        nonShardReduction,
       );
     }
     return inputs;
@@ -4114,23 +4138,38 @@ class GlobalState {
   static const int bonfireLogCost = 10;
 
   GlobalState startBonfire(FiremakingAction action) {
-    // Check that we have enough logs
+    final modifiers = createActionModifierProvider(
+      action,
+      conditionContext: ConditionContext.empty,
+      consumesOnType: null,
+    );
+    // freeBonfires comes from potions, so pass skillId explicitly.
+    final isFree =
+        modifiers.getModifier('freeBonfires', skillId: Skill.firemaking.id) > 0;
     final logItem = registries.items.byId(action.logId);
-    final logCount = inventory.countOfItem(logItem);
-    if (logCount < bonfireLogCost) {
-      throw Exception(
-        'Cannot start bonfire: need $bonfireLogCost ${action.logId.name}, '
-        'have $logCount',
-      );
+
+    if (!isFree) {
+      final logCount = inventory.countOfItem(logItem);
+      if (logCount < bonfireLogCost) {
+        throw Exception(
+          'Cannot start bonfire: need $bonfireLogCost '
+          '${action.logId.name}, have $logCount',
+        );
+      }
     }
 
-    // Consume logs
-    final newInventory = inventory.removing(
-      ItemStack(logItem, count: bonfireLogCost),
-    );
+    final newInventory = isFree
+        ? inventory
+        : inventory.removing(ItemStack(logItem, count: bonfireLogCost));
 
-    // Start the bonfire
-    final bonfireTicks = ticksFromDuration(action.bonfireInterval);
+    // firemakingBonfireInterval: percentage modifier on bonfire duration.
+    final intervalMod = modifiers
+        .getModifier('firemakingBonfireInterval', skillId: Skill.firemaking.id)
+        .toInt();
+    final baseTicks = ticksFromDuration(action.bonfireInterval);
+    final bonfireTicks = (baseTicks * (1.0 + intervalMod / 100.0))
+        .round()
+        .clamp(1, baseTicks * 10);
     final newBonfire = BonfireState(
       actionId: action.id,
       ticksRemaining: bonfireTicks,
