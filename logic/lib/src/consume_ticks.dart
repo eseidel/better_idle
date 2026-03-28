@@ -756,7 +756,11 @@ void completeCookingAction(
   // Calculate success chance: 70% base + 0.6% per mastery level (capped at 50)
   // Total possible from mastery: 70% + 30% = 100% at level 50
   final masteryBonus = masteryLevel.clamp(0, 50) * 0.6;
-  final baseSuccessChance = 70.0 + masteryBonus;
+  // successfulCookChance modifier adds percentage points (scoped by action)
+  final modifierBonus = modifiers.successfulCookChance(
+    actionId: action.id.localId,
+  );
+  final baseSuccessChance = 70.0 + masteryBonus + modifierBonus;
   // cookingSuccessCap modifier can increase the cap above 100%
   final successCap = 100.0 + modifiers.cookingSuccessCap;
   final successChance = baseSuccessChance.clamp(0.0, successCap) / 100.0;
@@ -774,6 +778,15 @@ void completeCookingAction(
     // Failed cook: award only 1 XP, no mastery, no output
     // Note: Burnt items are NOT received in Melvor Idle
     builder.addSkillXp(Skill.cooking, 1);
+
+    // flatCoalGainedOnCookingFailure: gain coal on failed cook
+    final coalGain = modifiers.flatCoalGainedOnCookingFailure;
+    if (coalGain > 0) {
+      const coalId = MelvorId('melvorD:Coal_Ore');
+      final coalItem = registries.items.byId(coalId);
+      builder.addInventory(ItemStack(coalItem, count: coalGain));
+    }
+
     return;
   }
 
@@ -815,6 +828,53 @@ void completeCookingAction(
   }
 
   builder.addInventory(ItemStack(outputItem, count: quantity));
+}
+
+/// Returns the randomHerblorePotionChance modifier value by querying the
+/// selected herblore potion directly.
+///
+/// The auto-generated accessor has no skill scope, but potion modifier
+/// resolution requires a skill ID. This helper reads the selected potion
+/// for the herblore skill and extracts the modifier value.
+int _getRandomHerblorePotionChance(GlobalState state) {
+  final potionItemId = state.selectedPotions[Skill.herblore.id];
+  if (potionItemId == null) return 0;
+
+  // Check that the player still has charges available
+  final inventoryCount = state.inventory.countById(potionItemId);
+  final chargesUsed = state.potionChargesUsed[Skill.herblore.id] ?? 0;
+  if (inventoryCount <= 0 && chargesUsed <= 0) return 0;
+
+  final potion = state.registries.items.byId(potionItemId);
+  for (final mod in potion.modifiers.modifiers) {
+    if (mod.name == 'randomHerblorePotionChance') {
+      return mod.entries.first.value.toInt();
+    }
+  }
+  return 0;
+}
+
+/// Rolls for a random herblore potion when completing a herblore action.
+///
+/// When the randomHerblorePotionChance modifier is active (from Herblore
+/// Potion), there is a percentage chance to receive a random tier-I potion
+/// from any herblore recipe on each herblore completion.
+void _rollRandomHerblorePotion(
+  StateUpdateBuilder builder,
+  int chance,
+  Random random,
+) {
+  if (chance <= 0) return;
+
+  if (random.nextDouble() >= chance / 100.0) return;
+
+  // Pick a random herblore recipe and award its tier-I potion.
+  final allRecipes = builder.registries.herblore.actions;
+  if (allRecipes.isEmpty) return;
+  final recipe = allRecipes[random.nextInt(allRecipes.length)];
+  final potionId = recipe.potionIds.first; // Tier I
+  final potionItem = builder.registries.items.byId(potionId);
+  builder.addInventory(ItemStack(potionItem, count: 1));
 }
 
 /// Rolls for summoning mark discovery after completing a skill action.
@@ -938,6 +998,14 @@ bool completeAction(
     ..addSkillMasteryXp(action.skill, perAction.masteryPoolXp)
     ..consumeSummonChargesForSkill(action)
     ..consumePotionCharge(action, random);
+
+  // randomHerblorePotionChance: chance to gain a random potion on herblore.
+  // This modifier comes from the Herblore Potion (a consumable), so we
+  // query it directly from the selected potion to get the value.
+  if (action is HerbloreAction) {
+    final potionChance = _getRandomHerblorePotionChance(builder.state);
+    _rollRandomHerblorePotion(builder, potionChance, random);
+  }
 
   // Roll for summoning mark discovery
   _rollMarkDiscovery(builder, action, random);
@@ -1420,8 +1488,16 @@ ForegroundResult _restartOrStop(
     // In dungeons, bones only drop when the dungeon's dropBones flag is true.
     final bones = action.bones;
     if (bones != null && (dungeon?.dropBones ?? true)) {
-      final item = builder.registries.items.byId(bones.itemId);
-      final stack = ItemStack(item, count: bones.quantity);
+      // convertBoneDropsIntoCake: replace bone drops with Birthday Cake Slice
+      final convertToCake = combatModifiers.convertBoneDropsIntoCake > 0;
+      final Item boneItem;
+      if (convertToCake) {
+        const cakeId = MelvorId('melvorF:Birthday_Cake_Slice');
+        boneItem = builder.registries.items.byId(cakeId);
+      } else {
+        boneItem = builder.registries.items.byId(bones.itemId);
+      }
+      final stack = ItemStack(boneItem, count: bones.quantity);
       if (hasAutoLooting) {
         if (!builder.tryAddToInventory(stack)) {
           builder.addToLoot(stack, isBones: true);
