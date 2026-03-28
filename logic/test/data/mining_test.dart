@@ -103,16 +103,25 @@ void main() {
     });
 
     test('returns 5 at mastery level 0', () {
-      expect(miningAction.maxHpForMasteryLevel(0), equals(5));
+      expect(
+        miningAction.maxHpForMasteryLevel(0, flatNodeHPBonus: 0),
+        equals(5),
+      );
     });
 
     test('returns 6 at mastery level 1', () {
-      expect(miningAction.maxHpForMasteryLevel(1), equals(6));
+      expect(
+        miningAction.maxHpForMasteryLevel(1, flatNodeHPBonus: 0),
+        equals(6),
+      );
     });
 
     test('increases by 1 per mastery level', () {
       for (var level = 0; level <= 10; level++) {
-        expect(miningAction.maxHpForMasteryLevel(level), equals(5 + level));
+        expect(
+          miningAction.maxHpForMasteryLevel(level, flatNodeHPBonus: 0),
+          equals(5 + level),
+        );
       }
     });
   });

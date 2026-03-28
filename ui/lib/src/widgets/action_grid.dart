@@ -312,8 +312,16 @@ class MiningActionCell extends StatelessWidget {
     final isStunned = state.isStunned;
 
     final miningState = state.miningState.rockState(action.id.localId);
-    final maxHp = action.maxHpForMasteryLevel(actionState.masteryLevel);
-    final currentHp = miningState.currentHp(action, actionState.masteryXp);
+    // TODO(eseidel): resolve flatMiningNodeHP modifier for accurate display.
+    final maxHp = action.maxHpForMasteryLevel(
+      actionState.masteryLevel,
+      flatNodeHPBonus: 0,
+    );
+    final currentHp = miningState.currentHp(
+      action,
+      actionState.masteryXp,
+      flatNodeHPBonus: 0,
+    );
 
     Duration? respawnTimeRemaining;
     final respawnTicks = miningState.respawnTicksRemaining;

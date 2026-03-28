@@ -5,6 +5,9 @@ import 'package:logic/src/farming_background.dart';
 import 'package:logic/src/passive_cooking.dart';
 import 'package:meta/meta.dart';
 
+/// Coal Ore item ID used by bonusCoalMining and bonusCoalOnDungeonCompletion.
+const _coalOreId = MelvorId('melvorD:Coal_Ore');
+
 /// Returns the sum of all mastery levels for all actions in a skill.
 /// Used in the mastery XP formula which operates on levels (1-99), not XP.
 /// All actions default to level 1 even if untrained.
@@ -963,8 +966,7 @@ bool completeAction(
     // bonusCoalMining: grant bonus coal ore when mining any rock.
     final bonusCoal = modifierProvider.bonusCoalMining;
     if (bonusCoal > 0) {
-      const coalId = MelvorId('melvorD:Coal_Ore');
-      final coalItem = registries.items.byId(coalId);
+      final coalItem = registries.items.byId(_coalOreId);
       builder.addInventory(ItemStack(coalItem, count: bonusCoal));
     }
 
@@ -1495,8 +1497,7 @@ ForegroundResult _restartOrStop(
           // bonusCoalOnDungeonCompletion: grant bonus coal on completion.
           final bonusCoal = combatModifiers.bonusCoalOnDungeonCompletion;
           if (bonusCoal > 0) {
-            const coalId = MelvorId('melvorD:Coal_Ore');
-            final coalItem = builder.registries.items.byId(coalId);
+            final coalItem = builder.registries.items.byId(_coalOreId);
             builder.addInventory(ItemStack(coalItem, count: bonusCoal));
           }
         }

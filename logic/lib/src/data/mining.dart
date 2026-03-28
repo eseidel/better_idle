@@ -104,7 +104,7 @@ class MiningAction extends SkillAction {
   int get respawnTicks => ticksFromDuration(respawnTime);
 
   /// Rock HP = 5 + Mastery Level + flatMiningNodeHP modifier
-  int maxHpForMasteryLevel(int masteryLevel, {int flatNodeHPBonus = 0}) =>
+  int maxHpForMasteryLevel(int masteryLevel, {required int flatNodeHPBonus}) =>
       5 + masteryLevel + flatNodeHPBonus;
 
   /// Returns progress (0.0 to 1.0) toward respawn completion, or null if

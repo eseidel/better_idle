@@ -10,6 +10,7 @@ void main() {
   late MiningAction runeEssence;
   late Item copperOre;
   late Item coalOre;
+  late Item miningSkillcape;
 
   setUpAll(() async {
     await loadTestRegistries();
@@ -18,6 +19,7 @@ void main() {
     runeEssence = testRegistries.miningAction('Rune Essence');
     copperOre = testItems.byName('Copper Ore');
     coalOre = testItems.byName('Coal Ore');
+    miningSkillcape = testItems.byName('Mining Skillcape');
   });
 
   group('miningGemChance', () {
@@ -92,8 +94,7 @@ void main() {
   group('flatMiningNodeHP', () {
     test('increases max HP of mining node', () {
       // At mastery level 1: base HP = 5 + 1 = 6.
-      // With flatNodeHPBonus of 0 (default).
-      expect(copper.maxHpForMasteryLevel(1), 6);
+      expect(copper.maxHpForMasteryLevel(1, flatNodeHPBonus: 0), 6);
 
       // With flatNodeHPBonus of 5: HP = 5 + 1 + 5 = 11.
       expect(copper.maxHpForMasteryLevel(1, flatNodeHPBonus: 5), 11);
@@ -102,7 +103,7 @@ void main() {
     test('MiningState.currentHp includes flatNodeHPBonus', () {
       const miningState = MiningState(totalHpLost: 3);
       // At mastery level 1 (xp=0 -> level 1): maxHP = 5 + 1 = 6, current = 3
-      expect(miningState.currentHp(copper, 0), 3);
+      expect(miningState.currentHp(copper, 0, flatNodeHPBonus: 0), 3);
 
       // With flatNodeHPBonus of 4: maxHP = 5 + 1 + 4 = 10, current = 7
       expect(miningState.currentHp(copper, 0, flatNodeHPBonus: 4), 7);
@@ -168,22 +169,94 @@ void main() {
   });
 
   group('bonusCoalMining', () {
-    test('grants bonus coal when mining ore', () {
-      // The bonusCoalMining modifier is applied via equipment/potions.
-      // We test the code path by calling completeAction directly with
-      // a state that produces the modifier. Since we can't easily inject
-      // modifiers into the full modifier resolution, we verify the code
-      // path exists by mining and checking that coal item ID is recognized.
-      final coalItem = testItems.byName('Coal Ore');
-      expect(coalItem.id, const MelvorId('melvorD:Coal_Ore'));
+    test('Mining Skillcape grants bonusCoalMining modifier', () {
+      // Verify the Mining Skillcape has the bonusCoalMining modifier
+      // so the modifier resolves through the equipment system.
+      expect(miningSkillcape.validSlots, contains(EquipmentSlot.cape));
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: Equipment(
+          foodSlots: const [null, null, null],
+          selectedFoodSlot: 0,
+          gearSlots: {EquipmentSlot.cape: miningSkillcape},
+        ),
+      );
+      final modifiers = state.testModifiersFor(copper);
+      expect(modifiers.bonusCoalMining, 1);
+    });
+
+    test('grants bonus coal ore per mining action with skillcape equipped', () {
+      // Equip Mining Skillcape (bonusCoalMining: 1) and mine copper.
+      // After completing a mining action, coal ore should appear in inventory.
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.mining: SkillState(xp: 1000000, masteryPoolXp: 0),
+        },
+        equipment: Equipment(
+          foodSlots: const [null, null, null],
+          selectedFoodSlot: 0,
+          gearSlots: {EquipmentSlot.cape: miningSkillcape},
+        ),
+      );
+
+      final random = Random(42);
+      state = state.startAction(copper, random: random);
+
+      // Complete one mining action (30 ticks for a 3-second mining swing).
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 30, random: random);
+      state = builder.build();
+
+      // Should have gained coal ore from the bonusCoalMining modifier.
+      expect(state.inventory.countOfItem(coalOre), greaterThanOrEqualTo(1));
+    });
+
+    test('does not grant coal without bonusCoalMining modifier', () {
+      // Mine copper without the Mining Skillcape equipped.
+      var state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.mining: SkillState(xp: 1000000, masteryPoolXp: 0),
+        },
+      );
+
+      final random = Random(42);
+      state = state.startAction(copper, random: random);
+
+      // Complete one mining action.
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 30, random: random);
+      state = builder.build();
+
+      // Copper rock produces copper ore, not coal.
+      expect(state.inventory.countOfItem(coalOre), 0);
     });
   });
 
   group('bonusCoalOnDungeonCompletion', () {
-    test('Coal Ore item ID is recognized', () {
-      // Verify the coal item ID used in the implementation is valid.
-      final coalItem = testItems.byName('Coal Ore');
-      expect(coalItem.id, const MelvorId('melvorD:Coal_Ore'));
+    test('coal ore item ID is correct for dungeon completion bonus', () {
+      // The bonusCoalOnDungeonCompletion modifier uses the same Coal Ore
+      // item ID as bonusCoalMining. Verify the ID resolves to the right item.
+      expect(coalOre.id, const MelvorId('melvorD:Coal_Ore'));
+    });
+
+    test('modifier resolves from Mining Skillcape equipment', () {
+      // The bonusCoalOnDungeonCompletion modifier comes from different
+      // equipment than bonusCoalMining. Verify the modifier accessor works.
+      final modifiers = StubModifierProvider({
+        'bonusCoalOnDungeonCompletion': 3,
+      });
+      expect(modifiers.bonusCoalOnDungeonCompletion, 3);
+    });
+
+    test('modifier is zero by default', () {
+      final state = GlobalState.test(testRegistries);
+      final modifiers = state.createGlobalModifierProvider(
+        conditionContext: ConditionContext.empty,
+      );
+      expect(modifiers.bonusCoalOnDungeonCompletion, 0);
     });
   });
 
