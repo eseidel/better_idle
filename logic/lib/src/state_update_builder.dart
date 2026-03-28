@@ -221,8 +221,18 @@ class StateUpdateBuilder {
 
   /// Adds an item to the loot container.
   /// Items lost due to overflow are tracked in Changes.
-  void addToLoot(ItemStack stack, {required bool isBones}) {
-    final (newLoot, lostItems) = _state.loot.addItem(stack, isBones: isBones);
+  /// When [allowStacking] is true (from allowLootContainerStacking modifier),
+  /// all items stack with existing items of the same type.
+  void addToLoot(
+    ItemStack stack, {
+    required bool isBones,
+    bool allowStacking = false,
+  }) {
+    final (newLoot, lostItems) = _state.loot.addItem(
+      stack,
+      isBones: isBones,
+      allowStacking: allowStacking,
+    );
     _state = _state.copyWith(loot: newLoot);
 
     // Track any lost items due to overflow
@@ -455,8 +465,36 @@ class StateUpdateBuilder {
 
   /// Applies the death penalty: randomly selects an equipment slot and
   /// removes any item in it. Tracks the lost item and death in changes.
+  ///
+  /// Modifiers that affect the death penalty:
+  /// - `rebirthChance`: percentage chance to avoid death entirely (no penalty)
+  /// - `itemProtection`: when > 0, equipment is protected from loss on death
+  ///
   /// Returns the result indicating what was lost (if anything).
   DeathPenaltyResult applyDeathPenalty(Random random) {
+    final modifiers = _state.createCombatModifierProvider(
+      conditionContext: ConditionContext.empty,
+    );
+
+    // Check rebirth chance - player avoids death entirely.
+    final rebirthPct = modifiers.rebirthChance;
+    if (rebirthPct > 0 && random.nextDouble() * 100 < rebirthPct) {
+      // Reborn! No death penalty, no item loss. Record death but not loss.
+      _changes = _changes.recordingDeath();
+      final noLossResult = DeathPenaltyResult(equipment: _state.equipment);
+      _lastDeathPenalty = noLossResult;
+      return noLossResult;
+    }
+
+    // Check item protection - equipment is protected from loss.
+    final hasItemProtection = modifiers.itemProtection > 0;
+    if (hasItemProtection) {
+      _changes = _changes.recordingDeath();
+      final protectedResult = DeathPenaltyResult(equipment: _state.equipment);
+      _lastDeathPenalty = protectedResult;
+      return protectedResult;
+    }
+
     final result = _state.equipment.applyDeathPenalty(random);
     _state = _state.copyWith(equipment: result.equipment);
     _lastDeathPenalty = result;
@@ -584,6 +622,7 @@ class StateUpdateBuilder {
     final efficiency = modifiers.autoEatEfficiency;
 
     final canAutoSwap = modifiers.autoSwapFoodUnlocked > 0;
+    final canAutoEquip = modifiers.autoEquipFoodUnlocked > 0;
 
     var foodConsumed = 0;
     var hp = currentHp;
@@ -601,6 +640,11 @@ class StateUpdateBuilder {
           );
           food = _state.equipment.selectedFood;
         }
+      }
+
+      // If still no food and autoEquipFood is unlocked, pull from bank.
+      if (food == null && canAutoEquip) {
+        food = _tryAutoEquipFoodFromBank();
       }
 
       if (food == null) break;
@@ -635,6 +679,27 @@ class StateUpdateBuilder {
     }
 
     return foodConsumed;
+  }
+
+  /// Tries to auto-equip food from the bank into the current food slot.
+  /// Returns the equipped food stack if successful, or null.
+  ItemStack? _tryAutoEquipFoodFromBank() {
+    // Find the best food in inventory (highest heal value).
+    ItemStack? bestFood;
+    for (final stack in _state.inventory.items) {
+      final heals = stack.item.healsFor;
+      if (heals == null || heals <= 0) continue;
+      if (bestFood == null || heals > (bestFood.item.healsFor ?? 0)) {
+        bestFood = stack;
+      }
+    }
+    if (bestFood == null) return null;
+
+    // Move the entire stack from inventory to the current food slot.
+    final newInventory = _state.inventory.removing(bestFood);
+    final newEquipment = _state.equipment.equipFood(bestFood);
+    _state = _state.copyWith(inventory: newInventory, equipment: newEquipment);
+    return _state.equipment.selectedFood;
   }
 
   /// Adds a summoning mark for a familiar.
@@ -896,14 +961,15 @@ class StateUpdateBuilder {
     if (potionId == null) return;
 
     final potion = registries.items.byId(potionId);
-    final maxCharges = potion.potionCharges ?? 1;
 
-    // Check charge preservation chance
+    // Check charge preservation chance and flatPotionCharges bonus
     final modifiers = _state.createActionModifierProvider(
       action,
       conditionContext: ConditionContext.empty, // Skill action, no combat.
       consumesOnType: null,
     );
+    final baseCharges = potion.potionCharges ?? 1;
+    final maxCharges = baseCharges + modifiers.flatPotionCharges;
     final preserveChance = modifiers.potionChargePreservationChance;
     if (preserveChance > 0 && random.nextDouble() * 100 < preserveChance) {
       return; // Charge preserved, don't consume

@@ -1681,23 +1681,28 @@ ForegroundResult _restartOrStop(
       conditionContext: ConditionContext.empty,
     );
     final hasAutoLooting = combatModifiers.autoLooting > 0;
+    final hasAutoBurying = combatModifiers.autoBurying > 0;
+    final allowStacking = combatModifiers.allowLootContainerStacking > 0;
 
     // Drop bones if the monster has them (bones stack in loot).
     // In dungeons, bones only drop when the dungeon's dropBones flag is true.
+    // When autoBurying is active, bones are consumed automatically instead
+    // of being added to loot (prayer XP requires bone XP data).
     final bones = action.bones;
-    if (bones != null && (dungeon?.dropBones ?? true)) {
+    if (bones != null && (dungeon?.dropBones ?? true) && !hasAutoBurying) {
       final item = builder.registries.items.byId(bones.itemId);
       final stack = ItemStack(item, count: bones.quantity);
       if (hasAutoLooting) {
         if (!builder.tryAddToInventory(stack)) {
-          builder.addToLoot(stack, isBones: true);
+          builder.addToLoot(stack, isBones: true, allowStacking: allowStacking);
         }
       } else {
-        builder.addToLoot(stack, isBones: true);
+        builder.addToLoot(stack, isBones: true, allowStacking: allowStacking);
       }
     }
 
-    // Roll loot table if present (regular loot does NOT stack).
+    // Roll loot table if present.
+    // When allowLootContainerStacking is active, loot items stack.
     // Dungeon monsters never drop their personal loot tables.
     if (!isDungeon) {
       final lootTable = action.lootTable;
@@ -1706,10 +1711,18 @@ ForegroundResult _restartOrStop(
         if (loot != null) {
           if (hasAutoLooting) {
             if (!builder.tryAddToInventory(loot)) {
-              builder.addToLoot(loot, isBones: false);
+              builder.addToLoot(
+                loot,
+                isBones: false,
+                allowStacking: allowStacking,
+              );
             }
           } else {
-            builder.addToLoot(loot, isBones: false);
+            builder.addToLoot(
+              loot,
+              isBones: false,
+              allowStacking: allowStacking,
+            );
           }
         }
       }
