@@ -1325,4 +1325,225 @@ void main() {
       expect(statsWithContext.maxHit, statsEmpty.maxHit);
     });
   });
+
+  group('damageReductionAgainst', () {
+    test('returns base DR when no type-specific resistance', () {
+      const stats = PlayerCombatStats(
+        minHit: 1,
+        maxHit: 10,
+        damageReduction: 0.20,
+        attackSpeed: 3.0,
+        accuracy: 100,
+        meleeEvasion: 100,
+        rangedEvasion: 100,
+        magicEvasion: 100,
+        flatResistanceAgainstMelee: 0,
+        flatResistanceAgainstRanged: 0,
+        flatResistanceAgainstMagic: 0,
+        flatResistanceAgainstSlayerTasks: 0,
+        isFightingSlayerTask: false,
+      );
+
+      expect(stats.damageReductionAgainst(AttackType.melee), 0.20);
+      expect(stats.damageReductionAgainst(AttackType.ranged), 0.20);
+      expect(stats.damageReductionAgainst(AttackType.magic), 0.20);
+    });
+
+    test('adds melee-specific resistance against melee attacks', () {
+      const stats = PlayerCombatStats(
+        minHit: 1,
+        maxHit: 10,
+        damageReduction: 0.20,
+        attackSpeed: 3.0,
+        accuracy: 100,
+        meleeEvasion: 100,
+        rangedEvasion: 100,
+        magicEvasion: 100,
+        flatResistanceAgainstMelee: 10, // +10% DR vs melee
+        flatResistanceAgainstRanged: 0,
+        flatResistanceAgainstMagic: 0,
+        flatResistanceAgainstSlayerTasks: 0,
+        isFightingSlayerTask: false,
+      );
+
+      expect(
+        stats.damageReductionAgainst(AttackType.melee),
+        closeTo(0.30, 0.001),
+      );
+      // Other types unaffected
+      expect(stats.damageReductionAgainst(AttackType.ranged), 0.20);
+      expect(stats.damageReductionAgainst(AttackType.magic), 0.20);
+    });
+
+    test('adds ranged-specific resistance against ranged attacks', () {
+      const stats = PlayerCombatStats(
+        minHit: 1,
+        maxHit: 10,
+        damageReduction: 0.10,
+        attackSpeed: 3.0,
+        accuracy: 100,
+        meleeEvasion: 100,
+        rangedEvasion: 100,
+        magicEvasion: 100,
+        flatResistanceAgainstMelee: 0,
+        flatResistanceAgainstRanged: 15,
+        flatResistanceAgainstMagic: 0,
+        flatResistanceAgainstSlayerTasks: 0,
+        isFightingSlayerTask: false,
+      );
+
+      expect(
+        stats.damageReductionAgainst(AttackType.ranged),
+        closeTo(0.25, 0.001),
+      );
+      expect(stats.damageReductionAgainst(AttackType.melee), 0.10);
+    });
+
+    test('adds magic-specific resistance against magic attacks', () {
+      const stats = PlayerCombatStats(
+        minHit: 1,
+        maxHit: 10,
+        damageReduction: 0.10,
+        attackSpeed: 3.0,
+        accuracy: 100,
+        meleeEvasion: 100,
+        rangedEvasion: 100,
+        magicEvasion: 100,
+        flatResistanceAgainstMelee: 0,
+        flatResistanceAgainstRanged: 0,
+        flatResistanceAgainstMagic: 20,
+        flatResistanceAgainstSlayerTasks: 0,
+        isFightingSlayerTask: false,
+      );
+
+      expect(
+        stats.damageReductionAgainst(AttackType.magic),
+        closeTo(0.30, 0.001),
+      );
+      expect(stats.damageReductionAgainst(AttackType.melee), 0.10);
+    });
+
+    test('adds slayer task resistance when fighting slayer task', () {
+      const stats = PlayerCombatStats(
+        minHit: 1,
+        maxHit: 10,
+        damageReduction: 0.20,
+        attackSpeed: 3.0,
+        accuracy: 100,
+        meleeEvasion: 100,
+        rangedEvasion: 100,
+        magicEvasion: 100,
+        flatResistanceAgainstMelee: 0,
+        flatResistanceAgainstRanged: 0,
+        flatResistanceAgainstMagic: 0,
+        flatResistanceAgainstSlayerTasks: 5, // +5% DR on slayer tasks
+        isFightingSlayerTask: true,
+      );
+
+      // All attack types get the bonus during slayer tasks
+      expect(
+        stats.damageReductionAgainst(AttackType.melee),
+        closeTo(0.25, 0.001),
+      );
+      expect(
+        stats.damageReductionAgainst(AttackType.ranged),
+        closeTo(0.25, 0.001),
+      );
+      expect(
+        stats.damageReductionAgainst(AttackType.magic),
+        closeTo(0.25, 0.001),
+      );
+    });
+
+    test('slayer task resistance not applied when not on task', () {
+      const stats = PlayerCombatStats(
+        minHit: 1,
+        maxHit: 10,
+        damageReduction: 0.20,
+        attackSpeed: 3.0,
+        accuracy: 100,
+        meleeEvasion: 100,
+        rangedEvasion: 100,
+        magicEvasion: 100,
+        flatResistanceAgainstMelee: 0,
+        flatResistanceAgainstRanged: 0,
+        flatResistanceAgainstMagic: 0,
+        flatResistanceAgainstSlayerTasks: 5,
+        isFightingSlayerTask: false,
+      );
+
+      expect(stats.damageReductionAgainst(AttackType.melee), 0.20);
+    });
+
+    test('stacks type-specific and slayer task resistance', () {
+      const stats = PlayerCombatStats(
+        minHit: 1,
+        maxHit: 10,
+        damageReduction: 0.10,
+        attackSpeed: 3.0,
+        accuracy: 100,
+        meleeEvasion: 100,
+        rangedEvasion: 100,
+        magicEvasion: 100,
+        flatResistanceAgainstMelee: 10,
+        flatResistanceAgainstRanged: 0,
+        flatResistanceAgainstMagic: 0,
+        flatResistanceAgainstSlayerTasks: 5,
+        isFightingSlayerTask: true,
+      );
+
+      // Melee: 10% base + 10% melee + 5% slayer = 25%
+      expect(
+        stats.damageReductionAgainst(AttackType.melee),
+        closeTo(0.25, 0.001),
+      );
+      // Ranged: 10% base + 5% slayer = 15%
+      expect(
+        stats.damageReductionAgainst(AttackType.ranged),
+        closeTo(0.15, 0.001),
+      );
+    });
+
+    test('clamps total DR to 95%', () {
+      const stats = PlayerCombatStats(
+        minHit: 1,
+        maxHit: 10,
+        damageReduction: 0.90,
+        attackSpeed: 3.0,
+        accuracy: 100,
+        meleeEvasion: 100,
+        rangedEvasion: 100,
+        magicEvasion: 100,
+        flatResistanceAgainstMelee: 20,
+        flatResistanceAgainstRanged: 0,
+        flatResistanceAgainstMagic: 0,
+        flatResistanceAgainstSlayerTasks: 0,
+        isFightingSlayerTask: false,
+      );
+
+      // 90% + 20% = 110%, clamped to 95%
+      expect(stats.damageReductionAgainst(AttackType.melee), 0.95);
+    });
+
+    test('random attack type returns base DR only', () {
+      const stats = PlayerCombatStats(
+        minHit: 1,
+        maxHit: 10,
+        damageReduction: 0.20,
+        attackSpeed: 3.0,
+        accuracy: 100,
+        meleeEvasion: 100,
+        rangedEvasion: 100,
+        magicEvasion: 100,
+        flatResistanceAgainstMelee: 10,
+        flatResistanceAgainstRanged: 10,
+        flatResistanceAgainstMagic: 10,
+        flatResistanceAgainstSlayerTasks: 0,
+        isFightingSlayerTask: false,
+      );
+
+      // Random attack type doesn't get any type-specific bonus
+      expect(stats.damageReductionAgainst(AttackType.random), 0.20);
+    });
+  });
 }

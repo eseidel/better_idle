@@ -144,7 +144,12 @@ int _computeBaseMaxHit({required int effectiveLevel, required int bonus}) {
 /// Uses Melvor-style formulas to calculate max hit, accuracy, evasion, etc.
 @immutable
 class PlayerCombatStats extends Stats {
-  const PlayerCombatStats._({
+  /// Creates player combat stats with all fields.
+  ///
+  /// Use [PlayerCombatStats.fromState] for production code.
+  /// This constructor is visible for testing direct stat construction.
+  @visibleForTesting
+  const PlayerCombatStats({
     required super.minHit,
     required super.maxHit,
     required super.damageReduction,
@@ -153,6 +158,11 @@ class PlayerCombatStats extends Stats {
     required this.meleeEvasion,
     required this.rangedEvasion,
     required this.magicEvasion,
+    this.flatResistanceAgainstMelee = 0,
+    this.flatResistanceAgainstRanged = 0,
+    this.flatResistanceAgainstMagic = 0,
+    this.flatResistanceAgainstSlayerTasks = 0,
+    this.isFightingSlayerTask = false,
   });
 
   /// Computes player stats from current game state.
@@ -338,7 +348,7 @@ class PlayerCombatStats extends Stats {
       modifier: bonuses.magicEvasion,
     );
 
-    return PlayerCombatStats._(
+    return PlayerCombatStats(
       minHit: minHit,
       maxHit: maxHit,
       damageReduction: damageReduction,
@@ -347,6 +357,12 @@ class PlayerCombatStats extends Stats {
       meleeEvasion: meleeEvasion,
       rangedEvasion: rangedEvasion,
       magicEvasion: magicEvasion,
+      flatResistanceAgainstMelee: bonuses.flatResistanceAgainstMelee,
+      flatResistanceAgainstRanged: bonuses.flatResistanceAgainstRanged,
+      flatResistanceAgainstMagic: bonuses.flatResistanceAgainstMagic,
+      flatResistanceAgainstSlayerTasks:
+          bonuses.flatResistanceAgainstSlayerTasks,
+      isFightingSlayerTask: conditionContext.isFightingSlayerTask,
     );
   }
 
@@ -362,6 +378,21 @@ class PlayerCombatStats extends Stats {
   /// Player's magic evasion rating.
   final int magicEvasion;
 
+  /// Flat resistance bonus against melee attacks (in resistance points).
+  final int flatResistanceAgainstMelee;
+
+  /// Flat resistance bonus against ranged attacks (in resistance points).
+  final int flatResistanceAgainstRanged;
+
+  /// Flat resistance bonus against magic attacks (in resistance points).
+  final int flatResistanceAgainstMagic;
+
+  /// Flat resistance bonus when fighting a slayer task (in resistance points).
+  final int flatResistanceAgainstSlayerTasks;
+
+  /// Whether the player is currently fighting their slayer task monster.
+  final bool isFightingSlayerTask;
+
   /// Gets the evasion rating for a specific attack type.
   int evasionForAttackType(AttackType attackType) {
     return switch (attackType) {
@@ -370,6 +401,25 @@ class PlayerCombatStats extends Stats {
       AttackType.magic => magicEvasion,
       AttackType.random => meleeEvasion, // Default to melee for random
     };
+  }
+
+  /// Computes effective damage reduction against a specific attack type.
+  ///
+  /// Adds attack-type-specific and slayer-task-specific flat resistance
+  /// bonuses on top of the base damage reduction. Each resistance point
+  /// is 1% DR. The result is clamped to [0.0, 0.95].
+  double damageReductionAgainst(AttackType attackType) {
+    var extraResistance = switch (attackType) {
+      AttackType.melee => flatResistanceAgainstMelee,
+      AttackType.ranged => flatResistanceAgainstRanged,
+      AttackType.magic => flatResistanceAgainstMagic,
+      AttackType.random => 0,
+    };
+    if (isFightingSlayerTask) {
+      extraResistance += flatResistanceAgainstSlayerTasks;
+    }
+    if (extraResistance == 0) return damageReduction;
+    return (damageReduction + extraResistance / 100).clamp(0.0, 0.95);
   }
 }
 
