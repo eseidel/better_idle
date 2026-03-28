@@ -28,7 +28,7 @@ void main() {
     cookedShrimp = items.byName('Shrimp');
     chefsSpoon = items.byName("Chef's Spoon");
     badCookerScroll = items.byName('Bad Cooker Scroll');
-    coalOre = items.byId(const MelvorId('melvorD:Coal_Ore'));
+    coalOre = items.byId(coalOreId);
 
     // Set up herblore
     herblorePotionI = items.byName('Herblore Potion I');
@@ -246,13 +246,11 @@ void main() {
         isTrue,
       );
 
-      // Run many herblore completions and check if we get extra potions
-      // With 1% chance, over 1000 trials we should get some
+      // Run many herblore completions and check if we get extra potions.
+      // With 1% chance, over 1000 trials we should get some.
+      // The modifier should award potions across all tiers, not just tier 1.
       var extraPotions = 0;
-      final allPotionIds = <MelvorId>{
-        for (final recipe in testRegistries.herblore.actions)
-          recipe.potionIds.first,
-      };
+      final tiersAwarded = <int>{};
 
       for (var i = 0; i < 1000; i++) {
         final random = Random(i);
@@ -264,13 +262,17 @@ void main() {
         completeAction(builder, herbloreAction, random: random);
         final result = builder.state;
 
-        // Count all tier-I potions except the one we're brewing
-        for (final potionId in allPotionIds) {
-          if (potionId == herbloreAction.potionIds.first) continue;
-          final item = testItems.byId(potionId);
-          final count = result.inventory.countOfItem(item);
-          if (count > 0) {
-            extraPotions += count;
+        // Count all potions (any tier) except the one we're brewing
+        for (final recipe in testRegistries.herblore.actions) {
+          for (var tier = 0; tier < recipe.potionIds.length; tier++) {
+            final potionId = recipe.potionIds[tier];
+            if (potionId == herbloreAction.potionIds.first) continue;
+            final item = testItems.byId(potionId);
+            final count = result.inventory.countOfItem(item);
+            if (count > 0) {
+              extraPotions += count;
+              tiersAwarded.add(tier);
+            }
           }
         }
       }
@@ -278,6 +280,8 @@ void main() {
       // With 1% chance over 1000 trials, expect roughly 10 extra potions
       // (allowing for variance)
       expect(extraPotions, greaterThan(0));
+      // Verify that multiple tiers are awarded, not just tier 0
+      expect(tiersAwarded.length, greaterThan(1));
     });
 
     test('no random potion without modifier', () {
@@ -298,12 +302,7 @@ void main() {
       // Verify no potion is selected
       expect(state.selectedPotions[Skill.herblore.id], isNull);
 
-      // Run completions - should never get extra potions
-      final allPotionIds = <MelvorId>{
-        for (final recipe in testRegistries.herblore.actions)
-          recipe.potionIds.first,
-      };
-
+      // Run completions - should never get extra potions (any tier)
       for (var i = 0; i < 100; i++) {
         final random = Random(i);
         final s = state.copyWith(
@@ -313,10 +312,12 @@ void main() {
         completeAction(builder, herbloreAction, random: random);
         final result = builder.state;
 
-        for (final potionId in allPotionIds) {
-          if (potionId == herbloreAction.potionIds.first) continue;
-          final item = testItems.byId(potionId);
-          expect(result.inventory.countOfItem(item), 0);
+        for (final recipe in testRegistries.herblore.actions) {
+          for (final potionId in recipe.potionIds) {
+            if (potionId == herbloreAction.potionIds.first) continue;
+            final item = testItems.byId(potionId);
+            expect(result.inventory.countOfItem(item), 0);
+          }
         }
       }
     });

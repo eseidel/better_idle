@@ -5,6 +5,10 @@ import 'package:logic/src/farming_background.dart';
 import 'package:logic/src/passive_cooking.dart';
 import 'package:meta/meta.dart';
 
+/// Well-known item ID for Coal Ore, used in cooking failure rewards and
+/// smithing recipes.
+const coalOreId = MelvorId('melvorD:Coal_Ore');
+
 /// Returns the sum of all mastery levels for all actions in a skill.
 /// Used in the mastery XP formula which operates on levels (1-99), not XP.
 /// All actions default to level 1 even if untrained.
@@ -782,8 +786,7 @@ void completeCookingAction(
     // flatCoalGainedOnCookingFailure: gain coal on failed cook
     final coalGain = modifiers.flatCoalGainedOnCookingFailure;
     if (coalGain > 0) {
-      const coalId = MelvorId('melvorD:Coal_Ore');
-      final coalItem = registries.items.byId(coalId);
+      final coalItem = registries.items.byId(coalOreId);
       builder.addInventory(ItemStack(coalItem, count: coalGain));
     }
 
@@ -830,49 +833,27 @@ void completeCookingAction(
   builder.addInventory(ItemStack(outputItem, count: quantity));
 }
 
-/// Returns the randomHerblorePotionChance modifier value by querying the
-/// selected herblore potion directly.
-///
-/// The auto-generated accessor has no skill scope, but potion modifier
-/// resolution requires a skill ID. This helper reads the selected potion
-/// for the herblore skill and extracts the modifier value.
-int _getRandomHerblorePotionChance(GlobalState state) {
-  final potionItemId = state.selectedPotions[Skill.herblore.id];
-  if (potionItemId == null) return 0;
-
-  // Check that the player still has charges available
-  final inventoryCount = state.inventory.countById(potionItemId);
-  final chargesUsed = state.potionChargesUsed[Skill.herblore.id] ?? 0;
-  if (inventoryCount <= 0 && chargesUsed <= 0) return 0;
-
-  final potion = state.registries.items.byId(potionItemId);
-  for (final mod in potion.modifiers.modifiers) {
-    if (mod.name == 'randomHerblorePotionChance') {
-      return mod.entries.first.value.toInt();
-    }
-  }
-  return 0;
-}
-
 /// Rolls for a random herblore potion when completing a herblore action.
 ///
 /// When the randomHerblorePotionChance modifier is active (from Herblore
-/// Potion), there is a percentage chance to receive a random tier-I potion
-/// from any herblore recipe on each herblore completion.
+/// Potion), there is a percentage chance to receive a random potion from any
+/// herblore recipe on each herblore completion. The tier is selected uniformly
+/// at random across all available tiers.
 void _rollRandomHerblorePotion(
   StateUpdateBuilder builder,
-  int chance,
+  ModifierAccessors modifiers,
   Random random,
 ) {
+  final chance = modifiers.randomHerblorePotionChance;
   if (chance <= 0) return;
 
   if (random.nextDouble() >= chance / 100.0) return;
 
-  // Pick a random herblore recipe and award its tier-I potion.
+  // Pick a random herblore recipe and award a random-tier potion.
   final allRecipes = builder.registries.herblore.actions;
   if (allRecipes.isEmpty) return;
   final recipe = allRecipes[random.nextInt(allRecipes.length)];
-  final potionId = recipe.potionIds.first; // Tier I
+  final potionId = recipe.potionIds[random.nextInt(recipe.potionIds.length)];
   final potionItem = builder.registries.items.byId(potionId);
   builder.addInventory(ItemStack(potionItem, count: 1));
 }
@@ -1000,11 +981,8 @@ bool completeAction(
     ..consumePotionCharge(action, random);
 
   // randomHerblorePotionChance: chance to gain a random potion on herblore.
-  // This modifier comes from the Herblore Potion (a consumable), so we
-  // query it directly from the selected potion to get the value.
   if (action is HerbloreAction) {
-    final potionChance = _getRandomHerblorePotionChance(builder.state);
-    _rollRandomHerblorePotion(builder, potionChance, random);
+    _rollRandomHerblorePotion(builder, modifierProvider, random);
   }
 
   // Roll for summoning mark discovery
