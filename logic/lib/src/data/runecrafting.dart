@@ -128,11 +128,7 @@ class RunecraftingRegistry {
   }
 
   RunecraftingRegistry.empty()
-    : this(
-        actions: const [],
-        categories: const [],
-        runeItemIds: const {},
-      );
+    : this(actions: const [], categories: const [], runeItemIds: const {});
 
   final List<RunecraftingAction> _actions;
   final List<RunecraftingCategory> _categories;
@@ -158,12 +154,10 @@ class RunecraftingRegistry {
   bool isRune(MelvorId itemId) => _runeItemIds.contains(itemId);
 
   /// Returns true if the item ID is an elemental rune.
-  bool isElementalRune(MelvorId itemId) =>
-      _elementalRuneIds.contains(itemId);
+  bool isElementalRune(MelvorId itemId) => _elementalRuneIds.contains(itemId);
 
   /// Returns true if the item ID is a combination rune.
-  bool isComboRune(MelvorId itemId) =>
-      _comboRuneIds.contains(itemId);
+  bool isComboRune(MelvorId itemId) => _comboRuneIds.contains(itemId);
 
   /// All elemental rune item IDs.
   Set<MelvorId> get elementalRuneIds => _elementalRuneIds;

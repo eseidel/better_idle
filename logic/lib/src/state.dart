@@ -1965,14 +1965,22 @@ class GlobalState {
     );
   }
 
-  /// Returns the doubling chance percentage (0–100) for the given action.
+  /// Returns the doubling chance percentage (0-100) for the given action.
+  ///
+  /// For runecrafting, includes the doubleRuneProvision bonus that applies
+  /// to all rune outputs. The per-item elementalRuneChance bonus is not
+  /// included here since it only affects elemental runes.
   double displayDoublingChance(SkillAction action) {
     final modifiers = createActionModifierProvider(
       action,
       conditionContext: ConditionContext.empty,
       consumesOnType: null,
     );
-    return action.doublingChance(modifiers) * 100;
+    var chance = action.doublingChance(modifiers) * 100;
+    if (action is RunecraftingAction) {
+      chance += modifiers.doubleRuneProvision;
+    }
+    return chance.clamp(0, 100);
   }
 
   /// Returns the preservation chance percentage (0–100) for the given action,

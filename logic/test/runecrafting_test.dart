@@ -200,6 +200,109 @@ void main() {
     });
   });
 
+  group('doubleRuneProvision feeds into doubling chance', () {
+    test('doubles rune output when doubleRuneProvision triggers', () {
+      final modifiers = StubModifierProvider({'doubleRuneProvision': 100});
+
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+      final random = Random(42);
+      rollAndCollectDrops(
+        builder,
+        airRune,
+        modifiers,
+        random,
+        const NoSelectedRecipe(),
+      );
+
+      expect(builder.state.inventory.countOfItem(airRuneItem), 2);
+    });
+
+    test('no doubling without modifier', () {
+      final modifiers = StubModifierProvider();
+
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+      final random = Random(42);
+      rollAndCollectDrops(
+        builder,
+        airRune,
+        modifiers,
+        random,
+        const NoSelectedRecipe(),
+      );
+
+      expect(builder.state.inventory.countOfItem(airRuneItem), 1);
+    });
+  });
+
+  group('elementalRuneChance feeds into doubling for elemental runes', () {
+    test('doubles elemental rune output when elementalRuneChance triggers', () {
+      final modifiers = StubModifierProvider({'elementalRuneChance': 100});
+
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+      final random = Random(42);
+      rollAndCollectDrops(
+        builder,
+        airRune,
+        modifiers,
+        random,
+        const NoSelectedRecipe(),
+      );
+
+      expect(builder.state.inventory.countOfItem(airRuneItem), 2);
+    });
+
+    test('does not double non-elemental runecrafting output', () {
+      final staffItem = testItems.byName('Staff of Air');
+      final modifiers = StubModifierProvider({'elementalRuneChance': 100});
+
+      final state = GlobalState.test(testRegistries);
+      final builder = StateUpdateBuilder(state);
+      final random = Random(42);
+      rollAndCollectDrops(
+        builder,
+        staffOfAir,
+        modifiers,
+        random,
+        const NoSelectedRecipe(),
+      );
+
+      expect(builder.state.inventory.countOfItem(staffItem), 1);
+    });
+  });
+
+  group('displayDoublingChance includes doubleRuneProvision', () {
+    test('includes doubleRuneProvision for runecrafting actions', () {
+      const modifierRing = Item(
+        id: MelvorId('test:rune_ring'),
+        name: 'Rune Ring',
+        itemType: 'Equipment',
+        sellsFor: 100,
+        validSlots: [EquipmentSlot.ring],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'doubleRuneProvision',
+            entries: [ModifierEntry(value: 15)],
+          ),
+        ]),
+      );
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: const Equipment(
+          foodSlots: [null, null, null],
+          selectedFoodSlot: 0,
+          gearSlots: {EquipmentSlot.ring: modifierRing},
+        ),
+      );
+
+      final chance = state.displayDoublingChance(airRune);
+      expect(chance, 15);
+    });
+  });
+
   group('applyRuneCostReduction', () {
     test('reduces rune costs by percentage', () {
       final result = testRegistries.runecrafting.applyRuneCostReduction({

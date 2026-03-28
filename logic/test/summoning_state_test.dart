@@ -1741,7 +1741,7 @@ void main() {
   });
   group('SummoningAction.shardItemIds', () {
     test('tracks shard item IDs from itemCosts', () {
-      final action = SummoningAction.fromJson({
+      final action = SummoningAction.fromJson(const {
         'id': 'TestFamiliar',
         'level': 1,
         'productID': 'melvorF:Test_Familiar',
@@ -1795,6 +1795,59 @@ void main() {
         newState.equipment.summonCountInSlot(EquipmentSlot.summon1),
         lessThan(10),
       );
+    });
+  });
+
+  group('effectiveInputs applies shard cost reduction', () {
+    test('flatSummoningShardCost reduces shard cost in effectiveInputs', () {
+      final action = testRegistries.summoning.actions.first;
+      final modifierRing = Item(
+        id: const MelvorId('test:shard_saver_ring'),
+        name: 'Shard Saver Ring',
+        itemType: 'Equipment',
+        sellsFor: 100,
+        validSlots: const [EquipmentSlot.ring],
+        modifiers: ModifierDataSet([
+          ModifierData(
+            name: 'flatSummoningShardCost',
+            entries: [
+              ModifierEntry(
+                value: -3,
+                scope: ModifierScope(actionId: action.id.localId),
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      var inventory = Inventory.empty(testItems);
+      for (final input in action.inputs.entries) {
+        final item = testItems.byId(input.key);
+        inventory = inventory.adding(ItemStack(item, count: input.value * 10));
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        equipment: Equipment(
+          foodSlots: const [null, null, null],
+          selectedFoodSlot: 0,
+          gearSlots: {EquipmentSlot.ring: modifierRing},
+        ),
+        inventory: inventory,
+        summoning: SummoningState(marks: {action.productId: 1}),
+      );
+
+      final inputs = state.effectiveInputs(action);
+      for (final shardId in action.shardItemIds) {
+        final original = action.inputs[shardId]!;
+        final expected = (original - 3).clamp(1, original);
+        expect(
+          inputs[shardId],
+          expected,
+          reason:
+              'Shard $shardId should be reduced from $original to $expected',
+        );
+      }
     });
   });
 }

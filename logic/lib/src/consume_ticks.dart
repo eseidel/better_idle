@@ -538,13 +538,23 @@ bool rollAndCollectDrops(
   final registries = builder.registries;
   var allItemsAdded = true;
 
-  var doublingChance = action.doublingChance(modifiers);
+  var baseDoublingChance = action.doublingChance(modifiers);
 
   // halveWoodcuttingDoubleChance: halves doubling for woodcutting.
   if (action.skill == Skill.woodcutting &&
       modifiers.halveWoodcuttingDoubleChance > 0) {
-    doublingChance /= 2.0;
+    baseDoublingChance /= 2.0;
   }
+
+  // For runecrafting, doubleRuneProvision and elementalRuneChance add to the
+  // doubling chance rather than being separate rolls. We compute the bonus
+  // here and apply it per-item in the drop loop.
+  final runeDoublingBonus = action is RunecraftingAction
+      ? modifiers.doubleRuneProvision / 100.0
+      : 0.0;
+  final elementalRuneDoublingBonus = action is RunecraftingAction
+      ? modifiers.elementalRuneChance / 100.0
+      : 0.0;
 
   // Compute flat bonus to primary product quantity from mastery/modifiers.
   final flatProductBonus = modifiers
@@ -629,7 +639,14 @@ bool rollAndCollectDrops(
     }
 
     if (itemStack != null) {
-      // Apply doubling chance
+      // Apply doubling chance. For runecrafting, doubleRuneProvision and
+      // elementalRuneChance stack onto the base doubling chance per-item.
+      var doublingChance = baseDoublingChance + runeDoublingBonus;
+      if (elementalRuneDoublingBonus > 0 &&
+          registries.runecrafting.isElementalRune(itemStack.item.id)) {
+        doublingChance += elementalRuneDoublingBonus;
+      }
+      doublingChance = doublingChance.clamp(0.0, 1.0);
       if (doublingChance > 0 && random.nextDouble() < doublingChance) {
         itemStack = ItemStack(itemStack.item, count: itemStack.count * 2);
       }
@@ -977,27 +994,12 @@ bool completeAction(
     builder.markTabletCrafted(action.productId);
   }
 
-  // Runecrafting bonus modifiers.
+  // doubleRuneProvision and elementalRuneChance are now handled as part of
+  // the per-item doubling chance in rollAndCollectDrops above.
+
+  // giveRandomComboRunesRunecrafting: chance to receive a random combo rune.
   if (action is RunecraftingAction) {
     final rc = registries.runecrafting;
-    // doubleRuneProvision: chance to double rune output.
-    final doubleChance = modifierProvider.doubleRuneProvision;
-    if (doubleChance > 0 && rc.isRune(action.productId)) {
-      if (random.nextDouble() < doubleChance / 100.0) {
-        final item = registries.items.byId(action.productId);
-        builder.addInventory(ItemStack(item, count: action.baseQuantity));
-      }
-    }
-    // elementalRuneChance/Quantity: bonus elemental runes.
-    final elemChance = modifierProvider.elementalRuneChance;
-    if (elemChance > 0 && rc.isElementalRune(action.productId)) {
-      if (random.nextDouble() < elemChance / 100.0) {
-        final qty = max(1, modifierProvider.elementalRuneQuantity);
-        final item = registries.items.byId(action.productId);
-        builder.addInventory(ItemStack(item, count: qty));
-      }
-    }
-    // giveRandomComboRunesRunecrafting: random combo runes.
     final comboChance = modifierProvider.giveRandomComboRunesRunecrafting;
     if (comboChance > 0 && rc.comboRuneIds.isNotEmpty) {
       if (random.nextDouble() < comboChance / 100.0) {

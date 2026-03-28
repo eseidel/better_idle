@@ -936,11 +936,9 @@ class _RecipesDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.state;
-    final actionState = state.actionState(action.id);
-    final selection = actionState.recipeSelection(action);
 
-    // Get the selected recipe inputs
-    final inputs = action.inputsForRecipe(selection);
+    // Use effectiveInputs so the UI shows reduced shard costs.
+    final inputs = state.effectiveInputs(action);
     final hasMultipleRecipes = action.hasAlternativeRecipes;
 
     return Column(
