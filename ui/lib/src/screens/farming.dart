@@ -3,6 +3,7 @@ import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/cost_row.dart';
+import 'package:ui/src/widgets/disabled_button_tooltip.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/item_count_badge_cell.dart';
 import 'package:ui/src/widgets/item_image.dart';
@@ -166,28 +167,42 @@ class _CategorySection extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const Spacer(),
-              FilledButton.tonal(
-                onPressed: readyCount > 0 && canAffordHarvest
-                    ? () => context.dispatch(
-                        HarvestAllCropsAction(categoryId: category.id),
-                      )
+              DisabledButtonTooltip(
+                message: readyCount == 0
+                    ? 'No crops ready to harvest'
+                    : !canAffordHarvest
+                    ? 'Not enough GP'
                     : null,
-                child: Text('Harvest All ($readyCount)'),
+                child: FilledButton.tonal(
+                  onPressed: readyCount > 0 && canAffordHarvest
+                      ? () => context.dispatch(
+                          HarvestAllCropsAction(categoryId: category.id),
+                        )
+                      : null,
+                  child: Text('Harvest All ($readyCount)'),
+                ),
               ),
               const SizedBox(width: 8),
-              FilledButton.tonal(
-                onPressed: emptyCount > 0 && canAffordPlant
-                    ? () => showDialog<void>(
-                        context: context,
-                        builder: (dialogContext) => _PlantAllDialog(
-                          category: category,
-                          state: state,
-                          emptyCount: emptyCount,
-                          outerContext: context,
-                        ),
-                      )
+              DisabledButtonTooltip(
+                message: emptyCount == 0
+                    ? 'No empty plots'
+                    : !canAffordPlant
+                    ? 'Not enough GP'
                     : null,
-                child: Text('Plant All ($emptyCount)'),
+                child: FilledButton.tonal(
+                  onPressed: emptyCount > 0 && canAffordPlant
+                      ? () => showDialog<void>(
+                          context: context,
+                          builder: (dialogContext) => _PlantAllDialog(
+                            category: category,
+                            state: state,
+                            emptyCount: emptyCount,
+                            outerContext: context,
+                          ),
+                        )
+                      : null,
+                  child: Text('Plant All ($emptyCount)'),
+                ),
               ),
             ],
           ),
