@@ -759,11 +759,7 @@ void main() {
 
       // Without modifier, XP should be base value
       final modifiersNoMod = state.testModifiersFor(action);
-      final xpNoMod = xpPerAction(
-        StateUpdateBuilder(state),
-        action,
-        modifiersNoMod,
-      );
+      final xpNoMod = xpPerAction(state, action, modifiersNoMod);
       expect(xpNoMod.xp, 100);
 
       // With +20% skillXP modifier via shop purchase
@@ -800,11 +796,7 @@ void main() {
         shop: ShopState(purchaseCounts: {shopPurchaseId: 1}),
       );
       final modifiersWithMod = stateWithMod.testModifiersFor(action);
-      final xpWithMod = xpPerAction(
-        StateUpdateBuilder(stateWithMod),
-        action,
-        modifiersWithMod,
-      );
+      final xpWithMod = xpPerAction(stateWithMod, action, modifiersWithMod);
       expect(xpWithMod.xp, 120); // 100 * 1.20 = 120
     });
 
@@ -855,11 +847,7 @@ void main() {
       expect(modifiers.skillXP(skillId: firemakingAction.skill.id), -10);
 
       // XP should be reduced
-      final xp = xpPerAction(
-        StateUpdateBuilder(state),
-        firemakingAction,
-        modifiers,
-      );
+      final xp = xpPerAction(state, firemakingAction, modifiers);
       expect(xp.xp, 90); // 100 * 0.90 = 90
     });
 

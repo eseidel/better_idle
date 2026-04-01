@@ -668,12 +668,41 @@ class XpPerAction {
   int get masteryPoolXp => max(1, (0.25 * masteryXp).toInt());
 }
 
+/// Computes XP and mastery XP for a skill action.
+/// Used by tests and the solver where no [StateUpdateBuilder] is available.
 XpPerAction xpPerAction(
+  GlobalState state,
+  SkillAction action,
+  ModifierAccessors modifiers,
+) {
+  return _xpPerAction(
+    state,
+    action,
+    modifiers,
+    masteryXp: masteryXpPerAction(state, action),
+  );
+}
+
+/// Hot-path version using the builder's caches for mastery XP.
+XpPerAction _xpPerActionCached(
   StateUpdateBuilder builder,
   SkillAction action,
   ModifierAccessors modifiers,
 ) {
-  final state = builder.state;
+  return _xpPerAction(
+    builder.state,
+    action,
+    modifiers,
+    masteryXp: _masteryXpPerActionCached(builder, action),
+  );
+}
+
+XpPerAction _xpPerAction(
+  GlobalState state,
+  SkillAction action,
+  ModifierAccessors modifiers, {
+  required int masteryXp,
+}) {
   // Apply skillXP modifier (percentage points, e.g., -10 = 10% reduction)
   var xpModifier = modifiers.skillXP(skillId: action.skill.id);
 
@@ -688,10 +717,7 @@ XpPerAction xpPerAction(
     baseXp * 10,
   );
 
-  return XpPerAction(
-    xp: adjustedXp,
-    masteryXp: _masteryXpPerActionCached(builder, action),
-  );
+  return XpPerAction(xp: adjustedXp, masteryXp: masteryXp);
 }
 
 /// Rolls all drops for an action and adds them to inventory.
@@ -881,7 +907,7 @@ bool completeThievingAction(
 
   if (success) {
     // Grant XP on success
-    final perAction = xpPerAction(builder, action, modifierProvider);
+    final perAction = _xpPerActionCached(builder, action, modifierProvider);
     builder
       ..addSkillXp(action.skill, perAction.xp)
       ..addActionMasteryXp(action.id, perAction.masteryXp)
@@ -978,7 +1004,7 @@ void completeCookingAction(
   // Success path
   // Passive cooking gets NO XP, mastery, preservation, doubling, or perfect
   if (!isPassive) {
-    final perAction = xpPerAction(builder, action, modifiers);
+    final perAction = _xpPerActionCached(builder, action, modifiers);
     builder
       ..addSkillXp(action.skill, perAction.xp)
       ..addActionMasteryXp(action.id, perAction.masteryXp)
@@ -1128,7 +1154,7 @@ bool completeAction(
     selection,
   );
 
-  final perAction = xpPerAction(builder, action, modifierProvider);
+  final perAction = _xpPerActionCached(builder, action, modifierProvider);
 
   builder
     ..addSkillXp(action.skill, perAction.xp)
@@ -1313,7 +1339,7 @@ void _completeSecondaryWoodcutting(
   }
 
   // Grant scaled XP and mastery
-  final perAction = xpPerAction(builder, secondaryAction, modifiers);
+  final perAction = _xpPerActionCached(builder, secondaryAction, modifiers);
   builder
     ..addSkillXp(secondaryAction.skill, perAction.xp * mAction)
     ..addActionMasteryXp(secondaryAction.id, perAction.masteryXp * mAction)
@@ -1944,7 +1970,7 @@ ForegroundResult _restartOrStop(
       conditionContext: ConditionContext.empty, // Skill action, no combat.
       consumesOnType: null,
     );
-    final perAction = xpPerAction(builder, obstacle, modifiers);
+    final perAction = _xpPerActionCached(builder, obstacle, modifiers);
 
     builder
       ..addSkillXp(Skill.agility, perAction.xp)
