@@ -5,19 +5,6 @@ import 'package:logic/src/farming_background.dart';
 import 'package:logic/src/passive_cooking.dart';
 import 'package:meta/meta.dart';
 
-/// Returns the sum of all mastery levels for all actions in a skill.
-/// Used in the mastery XP formula which operates on levels (1-99), not XP.
-/// All actions default to level 1 even if untrained.
-int playerTotalMasteryLevelForSkill(GlobalState state, Skill skill) {
-  var total = 0;
-  for (final action in state.registries.actionsForSkill(skill)) {
-    // state.actionState returns ActionState.empty for untrained actions,
-    // which has masteryXp=0, giving masteryLevel=1 (levelForXp(0) == 1).
-    total += state.actionState(action.id).masteryLevel;
-  }
-  return total;
-}
-
 /// Returns the percentage increase in the global mastery XP multiplier
 /// from adding [levelsAdded] total mastery levels to a skill.
 double masteryXpGlobalPercentIncrease(
@@ -25,23 +12,20 @@ double masteryXpGlobalPercentIncrease(
   Skill skill,
   int levelsAdded,
 ) {
-  final currentTotal = playerTotalMasteryLevelForSkill(state, skill);
+  final currentTotal = state.totalMasteryLevelForSkill(skill);
   if (currentTotal == 0) return 0;
   return levelsAdded / currentTotal * 100;
 }
 
 /// Returns the amount of mastery XP gained per action.
-/// Iterates all actions in the skill to compute total mastery level.
-/// For hot-path usage, prefer the StateUpdateBuilder version which caches.
+/// For hot-path usage during tick processing, use the builder overload
+/// which caches totalMasteryLevel and unlockedActionsCount.
 int masteryXpPerAction(GlobalState state, SkillAction action) {
   return calculateMasteryXpPerAction(
     registries: state.registries,
     action: action,
     unlockedActions: state.unlockedActionsCount(action.skill),
-    playerTotalMasteryLevel: playerTotalMasteryLevelForSkill(
-      state,
-      action.skill,
-    ),
+    playerTotalMasteryLevel: state.totalMasteryLevelForSkill(action.skill),
     itemMasteryLevel: state.actionState(action.id).masteryLevel,
     bonus: 0,
   );

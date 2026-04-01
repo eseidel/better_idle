@@ -26,13 +26,14 @@ class StateUpdateBuilder {
   Map<MelvorId, List<TownshipTask>>? _tasksBySkillXpGoal;
 
   /// Returns the cached total mastery level for a skill.
-  /// Populates the cache on first access by iterating all actions.
+  /// Delegates to [GlobalState.totalMasteryLevelForSkill] on first access,
+  /// then caches and incrementally updates via [addActionMasteryXp].
   int totalMasteryLevelForSkill(Skill skill) {
     final cached = _totalMasteryLevelCache.putIfAbsent(skill, () {
-      return _computeTotalMasteryLevel(skill);
+      return _state.totalMasteryLevelForSkill(skill);
     });
     assert(() {
-      final actual = _computeTotalMasteryLevel(skill);
+      final actual = _state.totalMasteryLevelForSkill(skill);
       if (cached != actual) {
         throw StateError(
           'Stale totalMasteryLevel cache for $skill: '
@@ -44,15 +45,9 @@ class StateUpdateBuilder {
     return cached;
   }
 
-  int _computeTotalMasteryLevel(Skill skill) {
-    var total = 0;
-    for (final action in _state.registries.actionsForSkill(skill)) {
-      total += _state.actionState(action.id).masteryLevel;
-    }
-    return total;
-  }
-
   /// Returns the cached unlocked action count for a skill.
+  /// Delegates to [GlobalState.unlockedActionsCount] on first access,
+  /// then caches and invalidates via [addSkillXp] on level-ups.
   int unlockedActionsCount(Skill skill) {
     final cached = _unlockedActionsCache.putIfAbsent(skill, () {
       return _state.unlockedActionsCount(skill);
@@ -371,10 +366,10 @@ class StateUpdateBuilder {
     final newState = oldState.copyWith(
       cumulativeTicks: oldState.cumulativeTicks + ticks,
     );
-    updateActionState(actionId, newState);
+    _updateActionState(actionId, newState);
   }
 
-  void updateActionState(ActionId actionId, ActionState newState) {
+  void _updateActionState(ActionId actionId, ActionState newState) {
     final oldLevel = _state.actionState(actionId).masteryLevel;
     final newActionStates = Map<ActionId, ActionState>.from(
       _state.actionStates,
@@ -485,7 +480,7 @@ class StateUpdateBuilder {
   void updateCombatState(ActionId actionId, CombatActionState newCombat) {
     // Update legacy actionStates
     final actionState = _state.actionState(actionId);
-    updateActionState(actionId, actionState.copyWith(combat: newCombat));
+    _updateActionState(actionId, actionState.copyWith(combat: newCombat));
 
     // Also update activeActivity if it's a CombatActivity
     final activity = _state.activeActivity;

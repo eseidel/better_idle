@@ -2062,6 +2062,17 @@ class GlobalState {
         .length;
   }
 
+  /// Returns the sum of all mastery levels for all actions in a skill.
+  /// Used in the mastery XP formula which operates on levels (1-99), not XP.
+  /// All actions default to level 1 even if untrained.
+  int totalMasteryLevelForSkill(Skill skill) {
+    var total = 0;
+    for (final action in registries.actionsForSkill(skill)) {
+      total += actionState(action.id).masteryLevel;
+    }
+    return total;
+  }
+
   ActionState actionState(ActionId action) =>
       actionStates[action] ?? ActionState.empty;
 
