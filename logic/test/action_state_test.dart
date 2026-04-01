@@ -57,7 +57,7 @@ void main() {
       );
 
       test('round-trips empty ActionState', () {
-        final original = ActionState.empty();
+        final original = ActionState.empty;
 
         final json = original.toJson();
         final restored = ActionState.fromJson(json);

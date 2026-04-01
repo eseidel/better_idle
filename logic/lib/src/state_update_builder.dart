@@ -28,20 +28,46 @@ class StateUpdateBuilder {
   /// Returns the cached total mastery level for a skill.
   /// Populates the cache on first access by iterating all actions.
   int totalMasteryLevelForSkill(Skill skill) {
-    return _totalMasteryLevelCache.putIfAbsent(skill, () {
-      var total = 0;
-      for (final action in _state.registries.actionsForSkill(skill)) {
-        total += _state.actionState(action.id).masteryLevel;
-      }
-      return total;
+    final cached = _totalMasteryLevelCache.putIfAbsent(skill, () {
+      return _computeTotalMasteryLevel(skill);
     });
+    assert(() {
+      final actual = _computeTotalMasteryLevel(skill);
+      if (cached != actual) {
+        throw StateError(
+          'Stale totalMasteryLevel cache for $skill: '
+          'cached=$cached, actual=$actual',
+        );
+      }
+      return true;
+    }());
+    return cached;
+  }
+
+  int _computeTotalMasteryLevel(Skill skill) {
+    var total = 0;
+    for (final action in _state.registries.actionsForSkill(skill)) {
+      total += _state.actionState(action.id).masteryLevel;
+    }
+    return total;
   }
 
   /// Returns the cached unlocked action count for a skill.
   int unlockedActionsCount(Skill skill) {
-    return _unlockedActionsCache.putIfAbsent(skill, () {
+    final cached = _unlockedActionsCache.putIfAbsent(skill, () {
       return _state.unlockedActionsCount(skill);
     });
+    assert(() {
+      final actual = _state.unlockedActionsCount(skill);
+      if (cached != actual) {
+        throw StateError(
+          'Stale unlockedActionsCount cache for $skill: '
+          'cached=$cached, actual=$actual',
+        );
+      }
+      return true;
+    }());
+    return cached;
   }
 
   Registries get registries => _state.registries;
@@ -349,11 +375,17 @@ class StateUpdateBuilder {
   }
 
   void updateActionState(ActionId actionId, ActionState newState) {
+    final oldLevel = _state.actionState(actionId).masteryLevel;
     final newActionStates = Map<ActionId, ActionState>.from(
       _state.actionStates,
     );
     newActionStates[actionId] = newState;
     _state = _state.copyWith(actionStates: newActionStates);
+    // Invalidate mastery cache if level changed (defensive).
+    if (newState.masteryLevel != oldLevel) {
+      final skill = _state.registries.actionById(actionId).skill;
+      _totalMasteryLevelCache.remove(skill);
+    }
   }
 
   void updatePlotState(MelvorId plotId, PlotState newState) {

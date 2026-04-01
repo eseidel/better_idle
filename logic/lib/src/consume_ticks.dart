@@ -11,7 +11,7 @@ import 'package:meta/meta.dart';
 int playerTotalMasteryLevelForSkill(GlobalState state, Skill skill) {
   var total = 0;
   for (final action in state.registries.actionsForSkill(skill)) {
-    // state.actionState returns ActionState.empty() for untrained actions,
+    // state.actionState returns ActionState.empty for untrained actions,
     // which has masteryXp=0, giving masteryLevel=1 (levelForXp(0) == 1).
     total += state.actionState(action.id).masteryLevel;
   }

@@ -2063,7 +2063,7 @@ class GlobalState {
   }
 
   ActionState actionState(ActionId action) =>
-      actionStates[action] ?? ActionState.empty();
+      actionStates[action] ?? ActionState.empty;
 
   int activeProgress(Action action) {
     final activity = activeActivity;

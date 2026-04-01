@@ -186,12 +186,15 @@ class ActionState {
 
   // Not const: matches primary constructor which pre-computes masteryLevel.
   // ignore: prefer_const_constructors_in_immutables
-  ActionState.empty()
+  ActionState._empty()
     : masteryXp = 0,
       cumulativeTicks = 0,
       combat = null,
       selectedRecipeIndex = null,
       masteryLevel = 1;
+
+  /// Shared empty instance (immutable, safe to reuse).
+  static final ActionState empty = ActionState._empty();
 
   factory ActionState.fromJson(Map<String, dynamic> json) {
     return ActionState(
