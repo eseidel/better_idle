@@ -6,6 +6,7 @@ import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/state.dart';
 import 'package:logic/src/types/modifier.dart';
+import 'package:logic/src/types/modifier_metadata.dart';
 import 'package:meta/meta.dart';
 
 /// An item cost for a shop purchase.
@@ -565,6 +566,74 @@ class ShopPurchase extends Equatable {
   /// Whether this purchase has skill interval modifiers for the given skill.
   bool hasSkillIntervalFor(MelvorId skillId) =>
       contains.modifiers.hasSkillIntervalFor(skillId);
+
+  /// Returns a description string suitable for displaying in the shop.
+  ///
+  /// Resolves the description from (in priority order):
+  /// 1. Custom description (with template variables substituted)
+  /// 2. Item charges description
+  /// 3. Purchase modifier descriptions (skill interval, bank space)
+  /// 4. Contained item's custom description
+  /// 5. Contained item's modifier descriptions
+  ///
+  /// Returns null if no description can be generated.
+  String? shopDescription(
+    ItemRegistry items,
+    ModifierMetadataRegistry modifierMetadata,
+  ) {
+    // Prefer custom description if available
+    if (description != null) {
+      return _substituteTemplateVars(description!);
+    }
+
+    // Handle itemCharges purchases
+    final itemCharges = contains.itemCharges;
+    if (itemCharges != null) {
+      final item = items.byId(itemCharges.itemId);
+      final chargeCount = itemCharges.quantity;
+      final itemDescription = item.description ?? item.name;
+      return '+$chargeCount charges: $itemDescription';
+    }
+
+    // Build description from purchase modifiers
+    final parts = <String>[];
+    final modifiers = contains.modifiers;
+    for (final skillId in modifiers.skillIntervalSkillIds) {
+      final skill = Skill.fromId(skillId);
+      final value = modifiers.skillIntervalForSkill(skillId);
+      final percent = value < 0 ? '$value%' : '+$value%';
+      parts.add('$percent ${skill.name} time');
+    }
+    final bankSpace = contains.bankSpace;
+    if (bankSpace != null) {
+      parts.add('+$bankSpace bank space');
+    }
+    if (parts.isNotEmpty) return parts.join(', ');
+
+    // Fall back to contained item's description or modifiers
+    if (contains.items.length == 1) {
+      final item = items.byId(contains.items.first.itemId);
+      if (item.description != null) return item.description;
+      if (item.modifiers.modifiers.isNotEmpty) {
+        final descs = modifierMetadata.formatModifierDescriptions(
+          item.modifiers,
+        );
+        if (descs.isNotEmpty) return descs.join(', ');
+      }
+    }
+
+    return null;
+  }
+
+  /// Substitutes template variables like ${qty}, ${qty1}, etc.
+  String _substituteTemplateVars(String text) {
+    var result = text.replaceAll(r'${qty}', '1');
+    for (var i = 0; i < contains.items.length; i++) {
+      final quantity = contains.items[i].quantity;
+      result = result.replaceAll('\${qty${i + 1}}', quantity.toString());
+    }
+    return result;
+  }
 
   @override
   List<Object?> get props => [

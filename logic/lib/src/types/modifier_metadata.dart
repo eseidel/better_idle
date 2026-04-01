@@ -1,5 +1,8 @@
 import 'package:equatable/equatable.dart';
+import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/strings.dart';
+import 'package:logic/src/types/modifier.dart';
 import 'package:meta/meta.dart';
 
 /// A single description template for a modifier value.
@@ -433,6 +436,36 @@ class ModifierMetadataRegistry {
     }
     // Most modifiers are percentages
     return '$sign$absValue%';
+  }
+
+  /// Formats all modifiers in a [ModifierDataSet] into human-readable
+  /// descriptions, resolving skill and currency names from scopes.
+  List<String> formatModifierDescriptions(ModifierDataSet modifiers) {
+    final descriptions = <String>[];
+    for (final mod in modifiers.modifiers) {
+      for (final entry in mod.entries) {
+        String? skillName;
+        String? currencyName;
+        final scope = entry.scope;
+        if (scope != null) {
+          if (scope.skillId != null) {
+            skillName = Skill.fromId(scope.skillId!).name;
+          }
+          if (scope.currencyId != null) {
+            currencyName = Currency.fromId(scope.currencyId!).name;
+          }
+        }
+        descriptions.add(
+          formatDescription(
+            name: mod.name,
+            value: entry.value,
+            skillName: skillName,
+            currencyName: currencyName,
+          ),
+        );
+      }
+    }
+    return descriptions;
   }
 
   /// Generic fallback formatting based on modifier name patterns.
