@@ -13,6 +13,37 @@ class StateUpdateBuilder {
   Tick? _stoppedAtTick;
   DeathPenaltyResult? _lastDeathPenalty;
 
+  /// Cached total mastery levels per skill, lazily populated and
+  /// incrementally updated when mastery XP changes.
+  final Map<Skill, int> _totalMasteryLevelCache = {};
+
+  /// Cached unlocked action counts per skill, lazily populated and
+  /// invalidated when skill level changes.
+  final Map<Skill, int> _unlockedActionsCache = {};
+
+  /// Pre-computed index: skill ID → tasks with skillXP goals for that skill.
+  /// Lazily built on first use from the township registry.
+  Map<MelvorId, List<TownshipTask>>? _tasksBySkillXpGoal;
+
+  /// Returns the cached total mastery level for a skill.
+  /// Populates the cache on first access by iterating all actions.
+  int totalMasteryLevelForSkill(Skill skill) {
+    return _totalMasteryLevelCache.putIfAbsent(skill, () {
+      var total = 0;
+      for (final action in _state.registries.actionsForSkill(skill)) {
+        total += _state.actionState(action.id).masteryLevel;
+      }
+      return total;
+    });
+  }
+
+  /// Returns the cached unlocked action count for a skill.
+  int unlockedActionsCount(Skill skill) {
+    return _unlockedActionsCache.putIfAbsent(skill, () {
+      return _state.unlockedActionsCount(skill);
+    });
+  }
+
   Registries get registries => _state.registries;
 
   GlobalState get state => _state;
@@ -216,6 +247,8 @@ class StateUpdateBuilder {
     // Track level changes
     if (newLevel > oldLevel) {
       _changes = _changes.addingSkillLevel(skill, oldLevel, newLevel);
+      // Invalidate unlocked actions cache since new level may unlock actions.
+      _unlockedActionsCache.remove(skill);
     }
 
     // Track task progress for skillXP goals
@@ -224,29 +257,37 @@ class StateUpdateBuilder {
 
   /// Updates task progress for all uncompleted tasks with skillXP goals.
   void _updateTaskProgressForSkillXP(Skill skill, int amount) {
+    // Build task index lazily on first use.
+    final index = _tasksBySkillXpGoal ??= _buildTasksBySkillXpGoal();
+    final tasks = index[skill.id];
+    if (tasks == null) return;
+
     final township = _state.township;
     final completedTasks = township.completedMainTasks;
 
-    for (final task in township.registry.tasks) {
-      // Skip completed tasks
+    for (final task in tasks) {
       if (completedTasks.contains(task.id)) continue;
+      _state = _state.copyWith(
+        township: township.updateTaskProgress(
+          task.id,
+          TaskGoalType.skillXP,
+          skill.id,
+          amount,
+        ),
+      );
+    }
+  }
 
-      // Check if this task has a goal for this skill's XP
+  Map<MelvorId, List<TownshipTask>> _buildTasksBySkillXpGoal() {
+    final map = <MelvorId, List<TownshipTask>>{};
+    for (final task in _state.township.registry.tasks) {
       for (final goal in task.goals) {
-        if (goal.type == TaskGoalType.skillXP && goal.id == skill.id) {
-          _state = _state.copyWith(
-            township: township.updateTaskProgress(
-              task.id,
-              TaskGoalType.skillXP,
-              skill.id,
-              amount,
-            ),
-          );
-          // Re-get township for next iteration
-          break;
+        if (goal.type == TaskGoalType.skillXP) {
+          (map[goal.id] ??= []).add(task);
         }
       }
     }
+    return map;
   }
 
   /// Tracks a monster kill for task progress and welcome back dialog.
@@ -285,9 +326,18 @@ class StateUpdateBuilder {
   }
 
   void addActionMasteryXp(ActionId actionId, int amount) {
+    final oldState = _state.actionState(actionId);
+    final oldLevel = oldState.masteryLevel;
     _state = _state.addActionMasteryXp(actionId, amount);
-    // Action Mastery XP is not tracked in the changes object.
-    // Probably getting to 99 is?
+    final newLevel = _state.actionState(actionId).masteryLevel;
+    // Incrementally update the cached total mastery level if it changed.
+    if (newLevel != oldLevel) {
+      final skill = _state.registries.actionById(actionId).skill;
+      final cached = _totalMasteryLevelCache[skill];
+      if (cached != null) {
+        _totalMasteryLevelCache[skill] = cached + (newLevel - oldLevel);
+      }
+    }
   }
 
   void addActionTicks(ActionId actionId, Tick ticks) {

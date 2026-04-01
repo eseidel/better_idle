@@ -144,7 +144,7 @@ void main() {
           ItemStack(stardust, count: cost),
         ]),
         // Mastery level 1, but modifier requires higher
-        actionStates: {constellation.id: const ActionState(masteryXp: 0)},
+        actionStates: {constellation.id: ActionState(masteryXp: 0)},
       );
 
       expect(

@@ -504,7 +504,7 @@ void main() {
       final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.test(
         testRegistries,
-        actionStates: {action.id: const ActionState(masteryXp: 100000)},
+        actionStates: {action.id: ActionState(masteryXp: 100000)},
       );
 
       final totalMastery = playerTotalMasteryLevelForSkill(
@@ -541,7 +541,7 @@ void main() {
       final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.test(
         testRegistries,
-        actionStates: {action.id: const ActionState(masteryXp: 100000)},
+        actionStates: {action.id: ActionState(masteryXp: 100000)},
       );
       final modifiers = StubModifierProvider();
       const circletId = MelvorId('melvorD:Circlet_of_Rhaelyx');

@@ -57,7 +57,7 @@ void main() {
       );
 
       test('round-trips empty ActionState', () {
-        const original = ActionState.empty();
+        final original = ActionState.empty();
 
         final json = original.toJson();
         final restored = ActionState.fromJson(json);
@@ -67,7 +67,7 @@ void main() {
       });
 
       test('round-trips ActionState with only masteryXp', () {
-        const original = ActionState(masteryXp: 500);
+        final original = ActionState(masteryXp: 500);
 
         final json = original.toJson();
         final restored = ActionState.fromJson(json);

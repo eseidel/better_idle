@@ -31,6 +31,8 @@ double masteryXpGlobalPercentIncrease(
 }
 
 /// Returns the amount of mastery XP gained per action.
+/// Iterates all actions in the skill to compute total mastery level.
+/// For hot-path usage, prefer the StateUpdateBuilder version which caches.
 int masteryXpPerAction(GlobalState state, SkillAction action) {
   return calculateMasteryXpPerAction(
     registries: state.registries,
@@ -41,6 +43,18 @@ int masteryXpPerAction(GlobalState state, SkillAction action) {
       action.skill,
     ),
     itemMasteryLevel: state.actionState(action.id).masteryLevel,
+    bonus: 0,
+  );
+}
+
+/// Cached version of [masteryXpPerAction] using the builder's caches.
+int _masteryXpPerActionCached(StateUpdateBuilder builder, SkillAction action) {
+  return calculateMasteryXpPerAction(
+    registries: builder.registries,
+    action: action,
+    unlockedActions: builder.unlockedActionsCount(action.skill),
+    playerTotalMasteryLevel: builder.totalMasteryLevelForSkill(action.skill),
+    itemMasteryLevel: builder.state.actionState(action.id).masteryLevel,
     bonus: 0,
   );
 }
@@ -671,10 +685,11 @@ class XpPerAction {
 }
 
 XpPerAction xpPerAction(
-  GlobalState state,
+  StateUpdateBuilder builder,
   SkillAction action,
   ModifierAccessors modifiers,
 ) {
+  final state = builder.state;
   // Apply skillXP modifier (percentage points, e.g., -10 = 10% reduction)
   var xpModifier = modifiers.skillXP(skillId: action.skill.id);
 
@@ -691,7 +706,7 @@ XpPerAction xpPerAction(
 
   return XpPerAction(
     xp: adjustedXp,
-    masteryXp: masteryXpPerAction(state, action),
+    masteryXp: _masteryXpPerActionCached(builder, action),
   );
 }
 
@@ -774,10 +789,7 @@ bool rollAndCollectDrops(
     } else if (drop is RareDrop) {
       // Use rollWithContext for RareDrops to check requiredItemId
       final skillLevel = builder.state.skillState(action.skill).skillLevel;
-      final totalMastery = playerTotalMasteryLevelForSkill(
-        builder.state,
-        action.skill,
-      );
+      final totalMastery = builder.totalMasteryLevelForSkill(action.skill);
       final hasRequiredItem =
           drop.requiredItemId == null ||
           builder.state.inventory.hasEverAcquired(drop.requiredItemId!);
@@ -840,7 +852,7 @@ bool rollAndCollectDrops(
   // doubling chance). Mastery tokens drop from non-combat skills only.
   final masteryTokenDrop = registries.drops.masteryTokenForSkill(action.skill);
   if (masteryTokenDrop != null) {
-    final unlockedActions = builder.state.unlockedActionsCount(action.skill);
+    final unlockedActions = builder.unlockedActionsCount(action.skill);
     final tokenStack = masteryTokenDrop.rollWithContext(
       registries.items,
       random,
@@ -885,7 +897,7 @@ bool completeThievingAction(
 
   if (success) {
     // Grant XP on success
-    final perAction = xpPerAction(builder.state, action, modifierProvider);
+    final perAction = xpPerAction(builder, action, modifierProvider);
     builder
       ..addSkillXp(action.skill, perAction.xp)
       ..addActionMasteryXp(action.id, perAction.masteryXp)
@@ -982,7 +994,7 @@ void completeCookingAction(
   // Success path
   // Passive cooking gets NO XP, mastery, preservation, doubling, or perfect
   if (!isPassive) {
-    final perAction = xpPerAction(builder.state, action, modifiers);
+    final perAction = xpPerAction(builder, action, modifiers);
     builder
       ..addSkillXp(action.skill, perAction.xp)
       ..addActionMasteryXp(action.id, perAction.masteryXp)
@@ -1132,7 +1144,7 @@ bool completeAction(
     selection,
   );
 
-  final perAction = xpPerAction(builder.state, action, modifierProvider);
+  final perAction = xpPerAction(builder, action, modifierProvider);
 
   builder
     ..addSkillXp(action.skill, perAction.xp)
@@ -1290,8 +1302,7 @@ void _completeSecondaryWoodcutting(
       final skillLevel = builder.state
           .skillState(secondaryAction.skill)
           .skillLevel;
-      final totalMastery = playerTotalMasteryLevelForSkill(
-        builder.state,
+      final totalMastery = builder.totalMasteryLevelForSkill(
         secondaryAction.skill,
       );
       final hasRequiredItem =
@@ -1318,7 +1329,7 @@ void _completeSecondaryWoodcutting(
   }
 
   // Grant scaled XP and mastery
-  final perAction = xpPerAction(builder.state, secondaryAction, modifiers);
+  final perAction = xpPerAction(builder, secondaryAction, modifiers);
   builder
     ..addSkillXp(secondaryAction.skill, perAction.xp * mAction)
     ..addActionMasteryXp(secondaryAction.id, perAction.masteryXp * mAction)
@@ -1949,7 +1960,7 @@ ForegroundResult _restartOrStop(
       conditionContext: ConditionContext.empty, // Skill action, no combat.
       consumesOnType: null,
     );
-    final perAction = xpPerAction(builder.state, obstacle, modifiers);
+    final perAction = xpPerAction(builder, obstacle, modifiers);
 
     builder
       ..addSkillXp(Skill.agility, perAction.xp)
