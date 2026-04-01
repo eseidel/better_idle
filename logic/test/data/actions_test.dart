@@ -495,7 +495,7 @@ void main() {
       expect(chance.scalingFactor, closeTo(4e-10, 1e-13));
     });
 
-    test('playerTotalMasteryLevelForSkill returns levels not XP', () {
+    test('totalMasteryLevelForSkill returns levels not XP', () {
       // Set up a woodcutting action with high XP (100,000) but only level 49.
       // levelForXp(100000) == 49 (from XP table).
       // If the function incorrectly summed XP, total would be 100,000.
@@ -504,13 +504,10 @@ void main() {
       final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.test(
         testRegistries,
-        actionStates: {action.id: const ActionState(masteryXp: 100000)},
+        actionStates: {action.id: ActionState(masteryXp: 100000)},
       );
 
-      final totalMastery = playerTotalMasteryLevelForSkill(
-        state,
-        Skill.woodcutting,
-      );
+      final totalMastery = state.totalMasteryLevelForSkill(Skill.woodcutting);
 
       // With 100,000 XP, mastery level is 49.
       // All other woodcutting actions have 0 XP => level 1 each.
@@ -541,7 +538,7 @@ void main() {
       final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.test(
         testRegistries,
-        actionStates: {action.id: const ActionState(masteryXp: 100000)},
+        actionStates: {action.id: ActionState(masteryXp: 100000)},
       );
       final modifiers = StubModifierProvider();
       const circletId = MelvorId('melvorD:Circlet_of_Rhaelyx');

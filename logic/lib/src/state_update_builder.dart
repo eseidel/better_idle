@@ -13,6 +13,58 @@ class StateUpdateBuilder {
   Tick? _stoppedAtTick;
   DeathPenaltyResult? _lastDeathPenalty;
 
+  /// Cached total mastery levels per skill, lazily populated and
+  /// incrementally updated when mastery XP changes.
+  final Map<Skill, int> _totalMasteryLevelCache = {};
+
+  /// Cached unlocked action counts per skill, lazily populated and
+  /// invalidated when skill level changes.
+  final Map<Skill, int> _unlockedActionsCache = {};
+
+  /// Pre-computed index: skill ID → tasks with skillXP goals for that skill.
+  /// Lazily built on first use from the township registry.
+  Map<MelvorId, List<TownshipTask>>? _tasksBySkillXpGoal;
+
+  /// Returns the cached total mastery level for a skill.
+  /// Delegates to [GlobalState.totalMasteryLevelForSkill] on first access,
+  /// then caches and incrementally updates via [addActionMasteryXp].
+  int totalMasteryLevelForSkill(Skill skill) {
+    final cached = _totalMasteryLevelCache.putIfAbsent(skill, () {
+      return _state.totalMasteryLevelForSkill(skill);
+    });
+    assert(() {
+      final actual = _state.totalMasteryLevelForSkill(skill);
+      if (cached != actual) {
+        throw StateError(
+          'Stale totalMasteryLevel cache for $skill: '
+          'cached=$cached, actual=$actual',
+        );
+      }
+      return true;
+    }());
+    return cached;
+  }
+
+  /// Returns the cached unlocked action count for a skill.
+  /// Delegates to [GlobalState.unlockedActionsCount] on first access,
+  /// then caches and invalidates via [addSkillXp] on level-ups.
+  int unlockedActionsCount(Skill skill) {
+    final cached = _unlockedActionsCache.putIfAbsent(skill, () {
+      return _state.unlockedActionsCount(skill);
+    });
+    assert(() {
+      final actual = _state.unlockedActionsCount(skill);
+      if (cached != actual) {
+        throw StateError(
+          'Stale unlockedActionsCount cache for $skill: '
+          'cached=$cached, actual=$actual',
+        );
+      }
+      return true;
+    }());
+    return cached;
+  }
+
   Registries get registries => _state.registries;
 
   GlobalState get state => _state;
@@ -216,6 +268,8 @@ class StateUpdateBuilder {
     // Track level changes
     if (newLevel > oldLevel) {
       _changes = _changes.addingSkillLevel(skill, oldLevel, newLevel);
+      // Invalidate unlocked actions cache since new level may unlock actions.
+      _unlockedActionsCache.remove(skill);
     }
 
     // Track task progress for skillXP goals
@@ -224,29 +278,37 @@ class StateUpdateBuilder {
 
   /// Updates task progress for all uncompleted tasks with skillXP goals.
   void _updateTaskProgressForSkillXP(Skill skill, int amount) {
+    // Build task index lazily on first use.
+    final index = _tasksBySkillXpGoal ??= _buildTasksBySkillXpGoal();
+    final tasks = index[skill.id];
+    if (tasks == null) return;
+
     final township = _state.township;
     final completedTasks = township.completedMainTasks;
 
-    for (final task in township.registry.tasks) {
-      // Skip completed tasks
+    for (final task in tasks) {
       if (completedTasks.contains(task.id)) continue;
+      _state = _state.copyWith(
+        township: township.updateTaskProgress(
+          task.id,
+          TaskGoalType.skillXP,
+          skill.id,
+          amount,
+        ),
+      );
+    }
+  }
 
-      // Check if this task has a goal for this skill's XP
+  Map<MelvorId, List<TownshipTask>> _buildTasksBySkillXpGoal() {
+    final map = <MelvorId, List<TownshipTask>>{};
+    for (final task in _state.township.registry.tasks) {
       for (final goal in task.goals) {
-        if (goal.type == TaskGoalType.skillXP && goal.id == skill.id) {
-          _state = _state.copyWith(
-            township: township.updateTaskProgress(
-              task.id,
-              TaskGoalType.skillXP,
-              skill.id,
-              amount,
-            ),
-          );
-          // Re-get township for next iteration
-          break;
+        if (goal.type == TaskGoalType.skillXP) {
+          (map[goal.id] ??= []).add(task);
         }
       }
     }
+    return map;
   }
 
   /// Tracks a monster kill for task progress and welcome back dialog.
@@ -285,9 +347,18 @@ class StateUpdateBuilder {
   }
 
   void addActionMasteryXp(ActionId actionId, int amount) {
+    final oldState = _state.actionState(actionId);
+    final oldLevel = oldState.masteryLevel;
     _state = _state.addActionMasteryXp(actionId, amount);
-    // Action Mastery XP is not tracked in the changes object.
-    // Probably getting to 99 is?
+    final newLevel = _state.actionState(actionId).masteryLevel;
+    // Incrementally update the cached total mastery level if it changed.
+    if (newLevel != oldLevel) {
+      final skill = _state.registries.actionById(actionId).skill;
+      final cached = _totalMasteryLevelCache[skill];
+      if (cached != null) {
+        _totalMasteryLevelCache[skill] = cached + (newLevel - oldLevel);
+      }
+    }
   }
 
   void addActionTicks(ActionId actionId, Tick ticks) {
@@ -295,15 +366,21 @@ class StateUpdateBuilder {
     final newState = oldState.copyWith(
       cumulativeTicks: oldState.cumulativeTicks + ticks,
     );
-    updateActionState(actionId, newState);
+    _updateActionState(actionId, newState);
   }
 
-  void updateActionState(ActionId actionId, ActionState newState) {
+  void _updateActionState(ActionId actionId, ActionState newState) {
+    final oldLevel = _state.actionState(actionId).masteryLevel;
     final newActionStates = Map<ActionId, ActionState>.from(
       _state.actionStates,
     );
     newActionStates[actionId] = newState;
     _state = _state.copyWith(actionStates: newActionStates);
+    // Invalidate mastery cache if level changed (defensive).
+    if (newState.masteryLevel != oldLevel) {
+      final skill = _state.registries.actionById(actionId).skill;
+      _totalMasteryLevelCache.remove(skill);
+    }
   }
 
   void updatePlotState(MelvorId plotId, PlotState newState) {
@@ -403,7 +480,7 @@ class StateUpdateBuilder {
   void updateCombatState(ActionId actionId, CombatActionState newCombat) {
     // Update legacy actionStates
     final actionState = _state.actionState(actionId);
-    updateActionState(actionId, actionState.copyWith(combat: newCombat));
+    _updateActionState(actionId, actionState.copyWith(combat: newCombat));
 
     // Also update activeActivity if it's a CombatActivity
     final activity = _state.activeActivity;

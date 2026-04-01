@@ -62,8 +62,8 @@ void main() {
         Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
       actionStates: {
-        normalTree.id: const ActionState(masteryXp: 25),
-        oakTree.id: const ActionState(masteryXp: 10),
+        normalTree.id: ActionState(masteryXp: 25),
+        oakTree.id: ActionState(masteryXp: 10),
       },
       plotStates: {
         plotId1: PlotState(cropId: crop.id, growthTicksRemaining: 500),
@@ -159,7 +159,7 @@ void main() {
       skillStates: const {
         Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
-      actionStates: {normalTree.id: const ActionState(masteryXp: 25)},
+      actionStates: {normalTree.id: ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
     );
 
@@ -186,7 +186,7 @@ void main() {
       skillStates: const {
         Skill.woodcutting: SkillState(xp: 100, masteryPoolXp: 50),
       },
-      actionStates: {normalTree.id: const ActionState(masteryXp: 25)},
+      actionStates: {normalTree.id: ActionState(masteryXp: 25)},
       updatedAt: DateTime(2024, 1, 1, 12),
       timeAway: TimeAway(
         registries: testRegistries,
@@ -1471,7 +1471,7 @@ void main() {
       // Create state with existing mastery XP
       final state = GlobalState.test(
         testRegistries,
-        actionStates: {normalTree.id: const ActionState(masteryXp: 100)},
+        actionStates: {normalTree.id: ActionState(masteryXp: 100)},
       );
 
       // Set a recipe index
@@ -1487,10 +1487,7 @@ void main() {
       final state = GlobalState.test(
         testRegistries,
         actionStates: {
-          normalTree.id: const ActionState(
-            masteryXp: 50,
-            selectedRecipeIndex: 0,
-          ),
+          normalTree.id: ActionState(masteryXp: 50, selectedRecipeIndex: 0),
         },
       );
 

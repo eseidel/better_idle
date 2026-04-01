@@ -223,7 +223,7 @@ void main() {
       final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.test(
         testRegistries,
-        actionStates: {action.id: const ActionState(masteryXp: 100)},
+        actionStates: {action.id: ActionState(masteryXp: 100)},
       );
       final waitFor = WaitForMasteryXp(action.id, 100);
 
@@ -242,7 +242,7 @@ void main() {
       final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.test(
         testRegistries,
-        actionStates: {action.id: const ActionState(masteryXp: 100)},
+        actionStates: {action.id: ActionState(masteryXp: 100)},
       );
       final waitFor = WaitForMasteryXp(action.id, 100);
 
@@ -289,7 +289,7 @@ void main() {
       final action = testRegistries.woodcuttingAction('Normal Tree');
       final state = GlobalState.test(
         testRegistries,
-        actionStates: {action.id: const ActionState(masteryXp: 75)},
+        actionStates: {action.id: ActionState(masteryXp: 75)},
       );
       final waitFor = WaitForMasteryXp(action.id, 100);
 

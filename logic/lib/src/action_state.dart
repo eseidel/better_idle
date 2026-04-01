@@ -176,14 +176,25 @@ class SelectedRecipe extends RecipeSelection {
 /// The serialized state of an Action in progress.
 @immutable
 class ActionState {
-  const ActionState({
+  // Not const: pre-computes masteryLevel from masteryXp for performance.
+  ActionState({
     required this.masteryXp,
     this.cumulativeTicks = 0,
     this.combat,
     this.selectedRecipeIndex,
-  });
+  }) : masteryLevel = levelForXp(masteryXp).clamp(1, 99);
 
-  const ActionState.empty() : this(masteryXp: 0);
+  // Not const: matches primary constructor which pre-computes masteryLevel.
+  // ignore: prefer_const_constructors_in_immutables
+  ActionState._empty()
+    : masteryXp = 0,
+      cumulativeTicks = 0,
+      combat = null,
+      selectedRecipeIndex = null,
+      masteryLevel = 1;
+
+  /// Shared empty instance (immutable, safe to reuse).
+  static final ActionState empty = ActionState._empty();
 
   factory ActionState.fromJson(Map<String, dynamic> json) {
     return ActionState(
@@ -227,7 +238,8 @@ class ActionState {
 
   /// The mastery level for this action, derived from mastery XP.
   /// Capped at 99 even if XP exceeds the level 99 threshold.
-  int get masteryLevel => levelForXp(masteryXp).clamp(1, 99);
+  /// Pre-computed in the constructor for performance.
+  final int masteryLevel;
 
   ActionState copyWith({
     int? masteryXp,
