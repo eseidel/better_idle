@@ -877,4 +877,85 @@ void main() {
       );
     });
   });
+
+  group('Mark discovery for custom skill paths', () {
+    test('completing thieving via tick processing rolls mark discovery', () {
+      // Find a familiar associated with thieving.
+      final thievingFamiliars = testRegistries.summoning
+          .familiarsForSkill(Skill.thieving)
+          .toList();
+      // Skip test if no thieving familiars in test data.
+      if (thievingFamiliars.isEmpty) return;
+
+      final familiar = thievingFamiliars.first;
+
+      final random = Random(0);
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.thieving: SkillState(
+            xp: 9000000, // High level for guaranteed success
+            masteryPoolXp: 0,
+          ),
+          Skill.hitpoints: SkillState(xp: 1154, masteryPoolXp: 0),
+          // High summoning level to unlock all familiars.
+          Skill.summoning: SkillState(xp: 9000000, masteryPoolXp: 0),
+        },
+      ).startAction(manAction, random: random);
+
+      // Use MockRandom with 0.0 so all rolls succeed (thieving success +
+      // mark discovery).
+      final rng = MockRandom();
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 30, random: rng);
+
+      final newState = builder.build();
+      expect(
+        newState.summoning.marksFor(familiar.productId),
+        greaterThan(0),
+        reason: 'Thieving should trigger mark discovery',
+      );
+    });
+
+    test('completing cooking via tick processing rolls mark discovery', () {
+      final cookingFamiliars = testRegistries.summoning
+          .familiarsForSkill(Skill.cooking)
+          .toList();
+      if (cookingFamiliars.isEmpty) return;
+
+      final familiar = cookingFamiliars.first;
+
+      // Find a cooking action that we have ingredients for.
+      final cookAction = testRegistries.cooking.actions.first;
+      final random = Random(0);
+
+      // Set up inventory with required inputs.
+      final inputs = cookAction.inputs;
+      final inventoryItems = <ItemStack>[];
+      for (final entry in inputs.entries) {
+        final item = testRegistries.items.byId(entry.key);
+        inventoryItems.add(ItemStack(item, count: entry.value * 10));
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        skillStates: const {
+          Skill.cooking: SkillState(xp: 9000000, masteryPoolXp: 0),
+          Skill.summoning: SkillState(xp: 9000000, masteryPoolXp: 0),
+        },
+        inventory: Inventory.fromItems(testRegistries.items, inventoryItems),
+      ).startAction(cookAction, random: random);
+
+      final rng = MockRandom();
+      final builder = StateUpdateBuilder(state);
+      consumeTicks(builder, 30, random: rng);
+
+      final newState = builder.build();
+      expect(
+        newState.summoning.marksFor(familiar.productId),
+        greaterThan(0),
+        reason: 'Cooking should trigger mark discovery',
+      );
+    });
+  });
 }

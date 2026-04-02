@@ -1217,6 +1217,10 @@ ForegroundResult _completeThievingForeground(
     builder.stopAction(ActionStopReason.playerDied);
     return ForegroundResult.stopped;
   }
+
+  // Roll for summoning mark discovery (regardless of success/failure/stun).
+  _rollMarkDiscovery(builder, action, random);
+
   if (builder.state.isStunned) {
     // Failed - leave at remainingTicks=0. The foreground will handle
     // the stun countdown and restart the action when it clears.
@@ -1232,6 +1236,10 @@ ForegroundResult _completeCookingForeground(
   Random random,
 ) {
   completeCookingAction(builder, action, random, isPassive: false);
+
+  // Roll for summoning mark discovery.
+  _rollMarkDiscovery(builder, action, random);
+
   return _restartOrStop(builder, action, true, random);
 }
 
