@@ -878,7 +878,7 @@ void main() {
     });
   });
 
-  group('Thieving mark discovery', () {
+  group('Mark discovery for custom skill paths', () {
     test('completing thieving via tick processing rolls mark discovery', () {
       // Find a familiar associated with thieving.
       final thievingFamiliars = testRegistries.summoning
