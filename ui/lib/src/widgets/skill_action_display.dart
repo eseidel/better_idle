@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide Action;
 import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/widgets/action_grid.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/count_badge_cell.dart';
@@ -51,6 +52,7 @@ class SkillActionDisplay extends StatelessWidget {
     this.additionalContent,
     this.durationBuilder,
     this.productId,
+    this.showProgressBar = false,
     this.onInputItemTap,
     super.key,
   });
@@ -85,6 +87,9 @@ class SkillActionDisplay extends StatelessWidget {
   /// The product item ID to show with inventory count badge in the header.
   /// If null, no product icon is shown.
   final MelvorId? productId;
+
+  /// Whether to show the action progress bar when active.
+  final bool showProgressBar;
 
   /// Callback when an input item is tapped. Used to show purchase dialogs.
   final void Function(Item item)? onInputItemTap;
@@ -305,6 +310,12 @@ class SkillActionDisplay extends StatelessWidget {
               ],
             ),
           const SizedBox(height: 8),
+
+          // Action progress bar (shown when active)
+          if (showProgressBar && isActive) ...[
+            ActionProgressBar(action: action),
+            const SizedBox(height: 8),
+          ],
 
           // Action button
           ElevatedButton(

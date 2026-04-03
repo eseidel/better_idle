@@ -65,6 +65,7 @@ class AltMagicPage extends StatelessWidget {
                     skillLevel: skillLevel,
                     headerText: 'Cast',
                     buttonText: 'Cast',
+                    showProgressBar: true,
                     onStart: () {
                       context.dispatch(
                         ToggleActionAction(action: selectedAction),
