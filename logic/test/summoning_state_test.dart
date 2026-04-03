@@ -1662,4 +1662,26 @@ void main() {
       expect(newState.equipment.summonCountInSlot(EquipmentSlot.summon2), 10);
     });
   });
+
+  group('familiarsForSkill', () {
+    setUpAll(() async {
+      await loadTestRegistries();
+    });
+
+    test('alt magic uses magic familiars for mark discovery', () {
+      final magicFamiliars = testRegistries.summoning
+          .familiarsForSkill(Skill.magic)
+          .toList();
+      final altMagicFamiliars = testRegistries.summoning
+          .familiarsForSkill(Skill.altMagic)
+          .toList();
+
+      expect(magicFamiliars, isNotEmpty, reason: 'Magic should have familiars');
+      expect(
+        altMagicFamiliars,
+        magicFamiliars,
+        reason: 'Alt Magic should use the same familiars as Magic',
+      );
+    });
+  });
 }

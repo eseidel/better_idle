@@ -152,8 +152,12 @@ class SummoningRegistry {
 
   /// Returns all summoning familiars that can have marks discovered while
   /// performing actions in the given skill.
+  ///
+  /// Alt Magic uses the Magic skill's familiars, since Melvor treats alt magic
+  /// as part of the Magic skill for mark discovery.
   Iterable<SummoningAction> familiarsForSkill(Skill skill) {
-    return _actions.where((action) => action.markSkillIds.contains(skill.id));
+    final id = skill == Skill.altMagic ? Skill.magic.id : skill.id;
+    return _actions.where((action) => action.markSkillIds.contains(id));
   }
 
   /// Returns true if the familiar (tablet) is relevant to the given skill.
