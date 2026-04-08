@@ -5,6 +5,7 @@ import 'package:ui/src/widgets/action_grid.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/count_badge_cell.dart';
+import 'package:ui/src/widgets/disabled_button_tooltip.dart';
 import 'package:ui/src/widgets/double_chance_badge_cell.dart';
 import 'package:ui/src/widgets/duration_badge_cell.dart';
 import 'package:ui/src/widgets/item_count_badge_cell.dart';
@@ -361,12 +362,17 @@ class ProductionActionDisplay extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        ElevatedButton(
-          onPressed: canStart || isActive ? onStart : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isActive ? Style.activeColor : null,
+        DisabledButtonTooltip(
+          message: !canStart && !isActive
+              ? state.cannotStartReason(action)
+              : null,
+          child: ElevatedButton(
+            onPressed: canStart || isActive ? onStart : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isActive ? Style.activeColor : null,
+            ),
+            child: Text(isActive ? 'Stop' : buttonText),
           ),
-          child: Text(isActive ? 'Stop' : buttonText),
         ),
         const SizedBox(width: 16),
         DurationBadgeCell(seconds: modifiedSeconds),

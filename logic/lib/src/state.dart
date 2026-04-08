@@ -1109,6 +1109,33 @@ class GlobalState {
     return true;
   }
 
+  /// Returns a human-readable reason why the action cannot be started,
+  /// or null if the action can be started.
+  String? cannotStartReason(Action action) {
+    if (action is SkillAction) {
+      final inputs = effectiveInputs(action);
+
+      // Check inputs
+      for (final requirement in inputs.entries) {
+        final item = registries.items.byId(requirement.key);
+        final itemCount = inventory.countOfItem(item);
+        if (itemCount < requirement.value) {
+          return 'Need ${requirement.value} ${item.name}'
+              ' (have $itemCount)';
+        }
+      }
+
+      // Check if summoning action requires marks
+      if (action is SummoningAction) {
+        if (!summoning.canCraftTablet(action.productId)) {
+          return 'Need at least 1 mark to craft tablets';
+        }
+      }
+    }
+
+    return null;
+  }
+
   /// Returns the shop duration modifier for a skill as a decimal fraction.
   /// For example, -0.05 means 5% reduction.
   /// This is a convenience method that combines ShopState and ShopRegistry.
