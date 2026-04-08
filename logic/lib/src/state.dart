@@ -37,6 +37,7 @@ import 'package:logic/src/types/potion_upgrade_result.dart';
 import 'package:logic/src/types/slayer_task.dart';
 import 'package:logic/src/types/stunned.dart';
 import 'package:logic/src/types/time_away.dart';
+import 'package:logic/src/view_state.dart';
 import 'package:meta/meta.dart';
 
 /// The type of combat the player is using.
@@ -346,7 +347,7 @@ class GlobalState {
     this.bonfire = const BonfireState.empty(),
     this.loot = const LootState.empty(),
     this.astrology = const AstrologyState.empty(),
-    this.selectedSkillActions = const {},
+    this.viewState = const ViewState.empty(),
   });
 
   GlobalState.empty(Registries registries)
@@ -374,7 +375,6 @@ class GlobalState {
         unlockedPlots: registries.farming.initialPlots(),
         // Initialize township resources with starting amounts
         township: TownshipState.initial(registries.township),
-        selectedSkillActions: const {},
       );
 
   @visibleForTesting
@@ -409,7 +409,7 @@ class GlobalState {
     BonfireState bonfire = const BonfireState.empty(),
     LootState loot = const LootState.empty(),
     AstrologyState astrology = const AstrologyState.empty(),
-    Map<Skill, MelvorId> selectedSkillActions = const {},
+    ViewState viewState = const ViewState.empty(),
     Set<MelvorId> readItems = const {},
   }) {
     // Support both gp parameter (for existing tests) and currencies map
@@ -445,7 +445,7 @@ class GlobalState {
       bonfire: bonfire,
       loot: loot,
       astrology: astrology,
-      selectedSkillActions: selectedSkillActions,
+      viewState: viewState,
       readItems: readItems,
     );
   }
@@ -531,7 +531,7 @@ class GlobalState {
           const LootState.empty(),
       astrology =
           _astrologyFromJson(json['astrology']) ?? const AstrologyState.empty(),
-      selectedSkillActions = _selectedSkillActionsFromJson(json),
+      viewState = _viewStateFromJson(json),
       readItems = _readItemsFromJson(json),
       unlockedPets = _unlockedPetsFromJson(json);
 
@@ -630,14 +630,20 @@ class GlobalState {
     return AstrologyState.fromJson(json as Map<String, dynamic>);
   }
 
-  static Map<Skill, MelvorId> _selectedSkillActionsFromJson(
-    Map<String, dynamic> json,
-  ) {
+  static ViewState _viewStateFromJson(Map<String, dynamic> json) {
+    // Read from nested 'viewState' key if present, otherwise read
+    // selectedSkillActions from top level for backward compatibility.
+    final viewStateJson = json['viewState'] as Map<String, dynamic>?;
+    if (viewStateJson != null) {
+      return ViewState.fromJson(viewStateJson);
+    }
+    // Legacy format: selectedSkillActions at top level, no viewPreferences.
     final actionsJson =
         json['selectedSkillActions'] as Map<String, dynamic>? ?? {};
-    return actionsJson.map((key, value) {
+    final actions = actionsJson.map((key, value) {
       return MapEntry(Skill.fromName(key), MelvorId.fromJson(value as String));
     });
+    return ViewState(selectedSkillActions: actions);
   }
 
   static Set<MelvorId> _readItemsFromJson(Map<String, dynamic> json) {
@@ -712,9 +718,7 @@ class GlobalState {
       'bonfire': bonfire.toJson(),
       'loot': loot.toJson(),
       'astrology': astrology.toJson(),
-      'selectedSkillActions': selectedSkillActions.map(
-        (key, value) => MapEntry(key.name, value.toJson()),
-      ),
+      'viewState': viewState.toJson(),
       'readItems': readItems.map((e) => e.toJson()).toList(),
     };
   }
@@ -888,10 +892,9 @@ class GlobalState {
   /// The astrology modifier purchase state.
   final AstrologyState astrology;
 
-  /// The last selected action per skill for UI navigation.
-  /// Used to remember which action (e.g., which log type in firemaking) the
-  /// player was viewing when they navigate away and back to a skill screen.
-  final Map<Skill, MelvorId> selectedSkillActions;
+  /// UI-only state (selected actions, filter preferences, etc.).
+  /// Grouped separately from game-mechanical state so the solver can ignore it.
+  final ViewState viewState;
 
   /// Set of item IDs that have been read (e.g., Message in a Bottle).
   /// Reading certain items unlocks content like secret fishing areas.
@@ -3893,7 +3896,7 @@ class GlobalState {
     BonfireState? bonfire,
     LootState? loot,
     AstrologyState? astrology,
-    Map<Skill, MelvorId>? selectedSkillActions,
+    ViewState? viewState,
     Set<MelvorId>? readItems,
     DateTime? updatedAt,
   }) {
@@ -3942,7 +3945,7 @@ class GlobalState {
       bonfire: bonfire ?? this.bonfire,
       loot: loot ?? this.loot,
       astrology: astrology ?? this.astrology,
-      selectedSkillActions: selectedSkillActions ?? this.selectedSkillActions,
+      viewState: viewState ?? this.viewState,
       readItems: readItems ?? this.readItems,
     );
   }
@@ -3956,13 +3959,22 @@ class GlobalState {
   ///
   /// Used to remember which action the player was viewing in a skill screen.
   GlobalState setSelectedSkillAction(Skill skill, MelvorId actionId) {
-    final newSelectedActions = Map<Skill, MelvorId>.from(selectedSkillActions);
-    newSelectedActions[skill] = actionId;
-    return copyWith(selectedSkillActions: newSelectedActions);
+    return copyWith(
+      viewState: viewState.setSelectedSkillAction(skill, actionId),
+    );
   }
 
   /// Gets the last selected action ID for a skill, or null if none.
-  MelvorId? selectedSkillAction(Skill skill) => selectedSkillActions[skill];
+  MelvorId? selectedSkillAction(Skill skill) =>
+      viewState.selectedSkillAction(skill);
+
+  /// Sets a view preference by key.
+  GlobalState setViewPreference(String key, String value) {
+    return copyWith(viewState: viewState.setViewPreference(key, value));
+  }
+
+  /// Gets a view preference by key, or null if not set.
+  String? viewPreference(String key) => viewState.viewPreference(key);
 
   // =========================================================================
   // Readable Items
