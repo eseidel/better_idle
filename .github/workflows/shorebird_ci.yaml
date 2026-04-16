@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      ccov: ${{ steps.filter.outputs.ccov }}
+      logic: ${{ steps.filter.outputs.logic }}
+      ui: ${{ steps.filter.outputs.ui }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            ccov:
+              - ccov/**
+            logic:
+              - logic/**
+            ui:
+              - logic/**
+              - ui/**
+
+  ccov:
+    needs: changes
+    if: needs.changes.outputs.ccov == 'true'
+    uses: ./.github/workflows/_shorebird_ci_dart.yaml
+    with:
+      package_name: ccov
+      package_path: ccov
+      has_bloc_lint: false
+      subpackages: ""
+
+  logic:
+    needs: changes
+    if: needs.changes.outputs.logic == 'true'
+    uses: ./.github/workflows/_shorebird_ci_dart.yaml
+    with:
+      package_name: logic
+      package_path: logic
+      has_bloc_lint: false
+      subpackages: ""
+
+  ui:
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    uses: ./.github/workflows/_shorebird_ci_flutter.yaml
+    with:
+      package_name: ui
+      package_path: ui
+      has_bloc_lint: false
+      subpackages: ""
+      flutter_version: ""
+      has_integration_tests: false
+
+  cspell:
+    name: CSpell
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: streetsidesoftware/cspell-action@v8
+        with:
+          incremental_files_only: false
+          config: cspell.config.yaml
+
