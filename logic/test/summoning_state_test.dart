@@ -107,6 +107,51 @@ void main() {
       expect(recipe.inputs[logsId], 6);
       expect(action.tier, 1);
     });
+
+    test('parses currencyCosts (e.g. Leprechaun GP cost)', () {
+      final json = {
+        'id': 'Leprechaun',
+        'level': 45,
+        'productID': 'melvorF:Summoning_Familiar_Leprechaun',
+        'baseQuantity': 25,
+        'baseExperience': 23,
+        'itemCosts': [
+          {'id': 'melvorF:Summoning_Shard_Green', 'quantity': 8},
+        ],
+        'nonShardItemCosts': <String>[],
+        'tier': 2,
+        'skillIDs': ['melvorD:Thieving'],
+        'currencyCosts': [
+          {'id': 'melvorD:GP', 'quantity': 1000},
+        ],
+      };
+
+      final action = SummoningAction.fromJson(json, namespace: 'melvorF');
+
+      expect(action.currencyCosts.gpCost, 1000);
+      expect(action.currencyCosts.costs, hasLength(1));
+      expect(action.currencyCosts.costs.first.currency, Currency.gp);
+    });
+
+    test('currencyCosts defaults to empty when absent', () {
+      final json = {
+        'id': 'TestFamiliar',
+        'level': 1,
+        'productID': 'melvorF:Test_Familiar',
+        'baseQuantity': 25,
+        'baseExperience': 5,
+        'itemCosts': [
+          {'id': 'melvorF:Summoning_Shard_Green', 'quantity': 6},
+        ],
+        'nonShardItemCosts': ['melvorD:Normal_Logs'],
+        'tier': 1,
+        'skillIDs': ['melvorD:Woodcutting'],
+      };
+
+      final action = SummoningAction.fromJson(json, namespace: 'melvorF');
+
+      expect(action.currencyCosts.isEmpty, isTrue);
+    });
   });
 
   group('markLevelForCount', () {
@@ -427,6 +472,76 @@ void main() {
         expect(state.canStartAction(summoningAction), isFalse);
       },
     );
+
+    test('canStartAction returns false when missing required currency', () {
+      // Find a familiar with a currency cost (e.g. Leprechaun costs 1000 GP).
+      final pricedAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.currencyCosts.gpCost > 0,
+      );
+
+      final summoningState = const SummoningState.empty().withMarks(
+        pricedAction.productId,
+        1,
+      );
+
+      // Stock all required input items but provide no GP.
+      var inventory = Inventory.empty(testItems);
+      for (final input in pricedAction.inputs.entries) {
+        final item = testItems.byId(input.key);
+        inventory = inventory.adding(ItemStack(item, count: input.value * 10));
+      }
+
+      final broke = GlobalState.test(
+        testRegistries,
+        summoning: summoningState,
+        inventory: inventory,
+      );
+      expect(broke.canStartAction(pricedAction), isFalse);
+
+      final flush = GlobalState.test(
+        testRegistries,
+        summoning: summoningState,
+        inventory: inventory,
+        gp: pricedAction.currencyCosts.gpCost,
+      );
+      expect(flush.canStartAction(pricedAction), isTrue);
+    });
+
+    test('crafting deducts the currency cost', () {
+      final pricedAction = testRegistries.summoning.actions.firstWhere(
+        (a) => a.currencyCosts.gpCost > 0,
+      );
+      final cost = pricedAction.currencyCosts.gpCost;
+
+      final summoningState = const SummoningState.empty().withMarks(
+        pricedAction.productId,
+        1,
+      );
+
+      // Stock plenty of inputs and enough GP for several crafts.
+      var inventory = Inventory.empty(testItems);
+      for (final input in pricedAction.inputs.entries) {
+        final item = testItems.byId(input.key);
+        inventory = inventory.adding(ItemStack(item, count: input.value * 100));
+      }
+
+      final state = GlobalState.test(
+        testRegistries,
+        summoning: summoningState,
+        inventory: inventory,
+        gp: cost * 10,
+      ).startAction(pricedAction, random: Random(42));
+
+      final builder = StateUpdateBuilder(state);
+      // Each tablet takes 5s; consume ~10s worth of ticks => >=1 craft.
+      consumeTicks(builder, 100, random: Random(42));
+      final after = builder.build();
+
+      final crafts = (cost * 10 - after.gp) ~/ cost;
+      expect(crafts, greaterThan(0));
+      // GP should drop by exactly cost * crafts (no partial deductions).
+      expect(after.gp, cost * 10 - cost * crafts);
+    });
   });
 
   group('Tablet Equipment', () {

@@ -1097,10 +1097,13 @@ class GlobalState {
         }
       }
 
-      // Check if summoning action requires marks
+      // Check if summoning action requires marks and has affordable currency.
       if (action is SummoningAction) {
         if (!summoning.canCraftTablet(action.productId)) {
           return false; // Need at least 1 mark to craft tablets
+        }
+        for (final cost in action.currencyCosts.costs) {
+          if (currency(cost.currency) < cost.amount) return false;
         }
       }
     }

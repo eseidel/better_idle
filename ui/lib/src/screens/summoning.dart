@@ -633,6 +633,7 @@ class _SummoningActionDisplay extends StatelessWidget {
       showRecycleBadge: true,
       effectText: effectText,
       showInputShopBadge: true,
+      currencyCosts: action.currencyCosts,
       onStart: onStart,
       onInputItemTap: (item) => _onShardTap(context, item),
     );
@@ -960,6 +961,10 @@ class _RecipesDisplay extends StatelessWidget {
                   entry.value,
                 ),
               ],
+              for (final cost in action.currencyCosts.costs) ...[
+                const SizedBox(width: 6),
+                _buildCurrencyCell(state, cost),
+              ],
             ],
           ),
         ),
@@ -975,6 +980,24 @@ class _RecipesDisplay extends StatelessWidget {
               ),
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _buildCurrencyCell(GlobalState state, CurrencyStack cost) {
+    final canAfford = state.currency(cost.currency) >= cost.amount;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CachedImage(assetPath: cost.currency.assetPath, size: 16),
+        const SizedBox(width: 2),
+        Text(
+          approximateCreditString(cost.amount),
+          style: TextStyle(
+            fontSize: 12,
+            color: canAfford ? null : Style.errorColor,
+          ),
+        ),
       ],
     );
   }
