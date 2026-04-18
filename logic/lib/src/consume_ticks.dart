@@ -1167,9 +1167,13 @@ bool completeAction(
   _rollMarkDiscovery(builder, action, random);
 
   // Mark tablet as crafted when completing a summoning action
-  // This unblocks further mark discovery for that familiar
+  // This unblocks further mark discovery for that familiar.
+  // Currency costs (e.g. GP) are charged regardless of preservation.
   if (action is SummoningAction) {
     builder.markTabletCrafted(action.productId);
+    for (final cost in action.currencyCosts.costs) {
+      builder.addCurrency(cost.currency, -cost.amount);
+    }
   }
 
   // Apply mining swing damage/depletion. Depletion does not short-circuit

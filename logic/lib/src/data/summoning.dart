@@ -1,5 +1,6 @@
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
+import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:meta/meta.dart';
 
@@ -23,6 +24,7 @@ class SummoningAction extends SkillAction {
     required this.tier,
     required this.markMedia,
     required this.markSkillIds,
+    this.currencyCosts = CurrencyCosts.empty,
     super.alternativeRecipes,
   }) : super(skill: Skill.summoning, duration: _summoningDuration);
 
@@ -94,6 +96,10 @@ class SummoningAction extends SkillAction {
         ? alternativeRecipes.first.inputs
         : shardInputs;
 
+    final currencyCosts = CurrencyCosts.fromJson(
+      json['currencyCosts'] as List<dynamic>?,
+    );
+
     return SummoningAction(
       id: ActionId(Skill.summoning.id, localId),
       name: productId.name,
@@ -106,6 +112,7 @@ class SummoningAction extends SkillAction {
       tier: tier,
       markMedia: json['markMedia'] as String?,
       markSkillIds: markSkillIds,
+      currencyCosts: currencyCosts,
     );
   }
 
@@ -122,6 +129,10 @@ class SummoningAction extends SkillAction {
   /// When performing actions in these skills, players have a chance to
   /// discover marks for this familiar.
   final List<MelvorId> markSkillIds;
+
+  /// Currency costs (e.g., GP) charged each time a tablet is crafted.
+  /// Charged regardless of preservation rolls.
+  final CurrencyCosts currencyCosts;
 
   /// The summon/recipe ID for this familiar (e.g., "melvorF:GolbinThief").
   /// This is used for synergy lookups.

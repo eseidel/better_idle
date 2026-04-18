@@ -4,6 +4,7 @@ import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/action_grid.dart';
 import 'package:ui/src/widgets/cached_image.dart';
 import 'package:ui/src/widgets/context_extensions.dart';
+import 'package:ui/src/widgets/cost_row.dart';
 import 'package:ui/src/widgets/count_badge_cell.dart';
 import 'package:ui/src/widgets/double_chance_badge_cell.dart';
 import 'package:ui/src/widgets/duration_badge_cell.dart';
@@ -40,6 +41,7 @@ class ProductionActionDisplay extends StatelessWidget {
     this.effectText,
     this.showInputShopBadge = false,
     this.onInputItemTap,
+    this.currencyCosts = CurrencyCosts.empty,
     super.key,
   });
 
@@ -61,6 +63,10 @@ class ProductionActionDisplay extends StatelessWidget {
   /// Optional callback when an input item is tapped
   /// (e.g., for purchase dialog).
   final void Function(Item item)? onInputItemTap;
+
+  /// Currency costs (e.g. GP) charged each time the action completes.
+  /// Rendered as an additional "Cost:" row below "Requires:" when non-empty.
+  final CurrencyCosts currencyCosts;
 
   bool get _isUnlocked =>
       skillLevel == null || skillLevel! >= action.unlockLevel;
@@ -156,6 +162,11 @@ class ProductionActionDisplay extends StatelessWidget {
           // Row 4: Requires | You Have
           _buildRequiresHaveRow(context, inputs),
           const SizedBox(height: 12),
+
+          if (currencyCosts.isNotEmpty) ...[
+            _buildCostRow(state),
+            const SizedBox(height: 12),
+          ],
 
           // Row 5: Produces | Grants
           _buildProducesGrantsRow(context, outputs),
@@ -299,6 +310,28 @@ class ProductionActionDisplay extends StatelessWidget {
                   onItemTap: onInputItemTap,
                 ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCostRow(GlobalState state) {
+    final canAffordCosts = {
+      for (final cost in currencyCosts.costs)
+        cost.currency: state.currency(cost.currency) >= cost.amount,
+    };
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Cost: ', style: TextStyle(fontWeight: FontWeight.bold)),
+        Expanded(
+          child: CostRow(
+            currencyCosts: [
+              for (final cost in currencyCosts.costs)
+                (cost.currency, cost.amount),
+            ],
+            canAffordCosts: canAffordCosts,
           ),
         ),
       ],
