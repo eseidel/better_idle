@@ -1,4 +1,4 @@
-/// Game logic for better_idle - pure Dart, no Flutter dependencies.
+/// Game logic for better_idle — pure Dart, no Flutter dependencies.
 library;
 
 // Core types
