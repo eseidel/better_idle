@@ -2626,4 +2626,39 @@ void main() {
       expect(result.gp, lessThan(state.gp));
     });
   });
+
+  group('cannotStartReason', () {
+    late SkillAction bronzeBar;
+
+    setUpAll(() {
+      bronzeBar = testRegistries.smithingAction('Bronze Bar');
+    });
+
+    test('returns null when all inputs are available', () {
+      final copperOre = testItems.byName('Copper Ore');
+      final tinOre = testItems.byName('Tin Ore');
+      final state = GlobalState.test(
+        testRegistries,
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(copperOre, count: 1),
+          ItemStack(tinOre, count: 1),
+        ]),
+      );
+      expect(state.cannotStartReason(bronzeBar), isNull);
+    });
+
+    test('returns reason when missing an input', () {
+      final state = GlobalState.test(testRegistries);
+      final reason = state.cannotStartReason(bronzeBar);
+      expect(reason, isNotNull);
+      expect(reason, contains('Need'));
+      expect(reason, contains('have 0'));
+    });
+
+    test('returns null for combat actions', () {
+      final cow = testRegistries.combatAction('Cow');
+      final state = GlobalState.test(testRegistries);
+      expect(state.cannotStartReason(cow), isNull);
+    });
+  });
 }
