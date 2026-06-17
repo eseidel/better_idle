@@ -1,3 +1,4 @@
+import 'package:logic/src/types/modifier.dart';
 import 'package:logic/src/types/modifier_metadata.dart';
 import 'package:test/test.dart';
 
@@ -494,6 +495,53 @@ void main() {
       expect(scopeDef.matchesScopes(hasSkill: true), isFalse);
       expect(scopeDef.matchesScopes(hasAction: true), isFalse);
       expect(scopeDef.matchesScopes(hasSkill: true, hasAction: true), isTrue);
+    });
+  });
+
+  group('ModifierMetadataRegistry.formatModifierDescriptions', () {
+    test('returns empty list for empty modifier set', () {
+      const registry = ModifierMetadataRegistry.empty();
+      const modifiers = ModifierDataSet([]);
+      expect(registry.formatModifierDescriptions(modifiers), isEmpty);
+    });
+
+    test('formats scalar modifier', () {
+      const registry = ModifierMetadataRegistry.empty();
+      final modifiers = ModifierDataSet.fromJson(const {
+        'bankSpace': 10,
+      }, namespace: 'melvorD');
+      final descriptions = registry.formatModifierDescriptions(modifiers);
+      expect(descriptions, hasLength(1));
+      expect(descriptions.first, contains('10'));
+    });
+
+    test('formats skill-scoped modifier with skill name', () {
+      const registry = ModifierMetadataRegistry.empty();
+      final modifiers = ModifierDataSet.fromJson(const {
+        'skillInterval': [
+          {'skillID': 'melvorD:Woodcutting', 'value': -5},
+        ],
+      }, namespace: 'melvorD');
+      final descriptions = registry.formatModifierDescriptions(modifiers);
+      expect(descriptions, hasLength(1));
+      expect(descriptions.first, contains('Woodcutting'));
+    });
+
+    test('formats multiple modifiers with multiple entries', () {
+      const registry = ModifierMetadataRegistry.empty();
+      final modifiers = ModifierDataSet.fromJson(const {
+        'skillItemDoublingChance': [
+          {'skillID': 'melvorD:Firemaking', 'value': 2},
+        ],
+        'masteryXP': [
+          {'skillID': 'melvorD:Firemaking', 'value': 3},
+        ],
+        'skillInterval': [
+          {'skillID': 'melvorD:Firemaking', 'value': -2},
+        ],
+      }, namespace: 'melvorD');
+      final descriptions = registry.formatModifierDescriptions(modifiers);
+      expect(descriptions, hasLength(3));
     });
   });
 }

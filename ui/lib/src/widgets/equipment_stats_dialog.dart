@@ -71,7 +71,8 @@ class _ItemInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final registry = context.state.registries.modifierMetadata;
-    final modifierDescriptions = _formatModifiers(item, registry);
+    final modifierDescriptions =
+        registry.formatModifierDescriptions(item.modifiers);
 
     return SizedBox(
       width: 180,
@@ -113,33 +114,6 @@ class _ItemInfoCard extends StatelessWidget {
     );
   }
 
-  List<String> _formatModifiers(Item item, ModifierMetadataRegistry registry) {
-    final descriptions = <String>[];
-    for (final mod in item.modifiers.modifiers) {
-      for (final entry in mod.entries) {
-        String? skillName;
-        String? currencyName;
-        final scope = entry.scope;
-        if (scope != null) {
-          if (scope.skillId != null) {
-            skillName = Skill.fromId(scope.skillId!).name;
-          }
-          if (scope.currencyId != null) {
-            currencyName = Currency.fromId(scope.currencyId!).name;
-          }
-        }
-        descriptions.add(
-          registry.formatDescription(
-            name: mod.name,
-            value: entry.value,
-            skillName: skillName,
-            currencyName: currencyName,
-          ),
-        );
-      }
-    }
-    return descriptions;
-  }
 }
 
 class _StatsCard extends StatelessWidget {

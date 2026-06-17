@@ -1788,7 +1788,7 @@ class _ItemModifiersDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final registry = context.state.registries.modifierMetadata;
-    final descriptions = _formatModifiers(item, registry);
+    final descriptions = registry.formatModifierDescriptions(item.modifiers);
 
     if (descriptions.isEmpty) return const SizedBox.shrink();
 
@@ -1809,35 +1809,4 @@ class _ItemModifiersDisplay extends StatelessWidget {
     );
   }
 
-  List<String> _formatModifiers(Item item, ModifierMetadataRegistry registry) {
-    final descriptions = <String>[];
-
-    for (final mod in item.modifiers.modifiers) {
-      for (final entry in mod.entries) {
-        // Extract scope information for formatting
-        String? skillName;
-        String? currencyName;
-        final scope = entry.scope;
-        if (scope != null) {
-          if (scope.skillId != null) {
-            skillName = Skill.fromId(scope.skillId!).name;
-          }
-          if (scope.currencyId != null) {
-            currencyName = Currency.fromId(scope.currencyId!).name;
-          }
-        }
-
-        descriptions.add(
-          registry.formatDescription(
-            name: mod.name,
-            value: entry.value,
-            skillName: skillName,
-            currencyName: currencyName,
-          ),
-        );
-      }
-    }
-
-    return descriptions;
-  }
 }

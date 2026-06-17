@@ -236,6 +236,157 @@ void main() {
     });
   });
 
+  group('ShopPurchase.shopDescription', () {
+    setUpAll(() async {
+      await loadTestRegistries();
+    });
+
+    ShopPurchase makePurchase({
+      String? description,
+      ModifierDataSet modifiers = const ModifierDataSet([]),
+      List<ItemCost> items = const [],
+      ItemCost? itemCharges,
+    }) {
+      return ShopPurchase(
+        id: const MelvorId('melvorD:Test'),
+        name: 'Test',
+        description: description,
+        category: const MelvorId('melvorD:General'),
+        cost: const ShopCost(currencies: [], items: []),
+        unlockRequirements: const [],
+        purchaseRequirements: const [],
+        contains: ShopContents(
+          modifiers: modifiers,
+          items: items,
+          itemCharges: itemCharges,
+        ),
+        buyLimit: 1,
+      );
+    }
+
+    test('returns custom description with template vars substituted', () {
+      final purchase = makePurchase(
+        description: r'Grants +${qty1} arrows and +${qty2} bolts',
+        items: [
+          const ItemCost(
+            itemId: MelvorId('melvorD:Bronze_Arrows'),
+            quantity: 200,
+          ),
+          const ItemCost(
+            itemId: MelvorId('melvorD:Bronze_Bolts'),
+            quantity: 150,
+          ),
+        ],
+      );
+
+      final desc = purchase.shopDescription(
+        testRegistries.items,
+        testRegistries.modifierMetadata,
+      );
+      expect(desc, 'Grants +200 arrows and +150 bolts');
+    });
+
+    test('returns itemCharges description', () {
+      // Find a real itemCharges purchase from the registry
+      final chargesPurchase = testRegistries.shop.all.firstWhere(
+        (p) => p.contains.itemCharges != null,
+      );
+      final desc = chargesPurchase.shopDescription(
+        testRegistries.items,
+        testRegistries.modifierMetadata,
+      );
+      expect(desc, isNotNull);
+      expect(desc, contains('charges'));
+    });
+
+    test('returns skill interval description from purchase modifiers', () {
+      final modifiers = ModifierDataSet.fromJson(const {
+        'skillInterval': [
+          {'skillID': 'melvorD:Woodcutting', 'value': -5},
+        ],
+      }, namespace: 'melvorD');
+      final purchase = makePurchase(modifiers: modifiers);
+
+      final desc = purchase.shopDescription(
+        testRegistries.items,
+        testRegistries.modifierMetadata,
+      );
+      expect(desc, '-5% Woodcutting time');
+    });
+
+    test('returns bank space description', () {
+      final modifiers = ModifierDataSet.fromJson(const {
+        'bankSpace': 10,
+      }, namespace: 'melvorD');
+      final purchase = makePurchase(modifiers: modifiers);
+
+      final desc = purchase.shopDescription(
+        testRegistries.items,
+        testRegistries.modifierMetadata,
+      );
+      expect(desc, '+10 bank space');
+    });
+
+    test('returns item description for single contained item', () {
+      // Find an item with a description
+      final itemWithDesc = testRegistries.items.all.firstWhere(
+        (i) => i.description != null,
+      );
+      final purchase = makePurchase(
+        items: [ItemCost(itemId: itemWithDesc.id, quantity: 1)],
+      );
+
+      final desc = purchase.shopDescription(
+        testRegistries.items,
+        testRegistries.modifierMetadata,
+      );
+      expect(desc, itemWithDesc.description);
+    });
+
+    test('returns modifier descriptions for single item with modifiers', () {
+      // Find an item with modifiers but no description
+      final itemWithMods = testRegistries.items.all.firstWhere(
+        (i) => i.description == null && i.modifiers.modifiers.isNotEmpty,
+      );
+      final purchase = makePurchase(
+        items: [ItemCost(itemId: itemWithMods.id, quantity: 1)],
+      );
+
+      final desc = purchase.shopDescription(
+        testRegistries.items,
+        testRegistries.modifierMetadata,
+      );
+      expect(desc, isNotNull);
+      expect(desc, isNotEmpty);
+    });
+
+    test('returns null when no description can be generated', () {
+      final purchase = makePurchase();
+
+      final desc = purchase.shopDescription(
+        testRegistries.items,
+        testRegistries.modifierMetadata,
+      );
+      expect(desc, isNull);
+    });
+
+    test('custom description takes priority over modifiers', () {
+      final modifiers = ModifierDataSet.fromJson(const {
+        'bankSpace': 10,
+      }, namespace: 'melvorD');
+      final purchase = makePurchase(
+        description: 'Custom text',
+        modifiers: modifiers,
+      );
+
+      final desc = purchase.shopDescription(
+        testRegistries.items,
+        testRegistries.modifierMetadata,
+      );
+      expect(desc, 'Custom text');
+    });
+  });
+
   group('ShopCategory', () {
     test('fromJson parses correctly', () {
       final json = {
