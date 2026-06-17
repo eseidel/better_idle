@@ -19,7 +19,6 @@ class ShopPage extends StatefulWidget {
 
 class _ShopPageState extends State<ShopPage> {
   final Set<String> _collapsedCategories = {};
-  bool _showAffordableOnly = false;
 
   bool _canPurchase(ShopViewModel viewModel, ShopPurchase purchase) {
     return viewModel._state.resolveShopCost(purchase).canPurchase;
@@ -27,18 +26,24 @@ class _ShopPageState extends State<ShopPage> {
 
   @override
   Widget build(BuildContext context) {
+    final showAffordableOnly =
+        context.state.viewPreference('shop.affordableOnly') == 'true';
+
     return GameScaffold(
       title: const Text('Shop'),
       actions: [
         IconButton(
           icon: Icon(
-            _showAffordableOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
+            showAffordableOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
           ),
           tooltip: 'Show affordable only',
           onPressed: () {
-            setState(() {
-              _showAffordableOnly = !_showAffordableOnly;
-            });
+            context.dispatch(
+              SetViewPreference(
+                key: 'shop.affordableOnly',
+                value: (!showAffordableOnly).toString(),
+              ),
+            );
           },
         ),
       ],
@@ -62,7 +67,9 @@ class _ShopPageState extends State<ShopPage> {
       final category = entry.key;
       var purchases = entry.value;
 
-      if (_showAffordableOnly) {
+      final showAffordableOnly =
+          context.state.viewPreference('shop.affordableOnly') == 'true';
+      if (showAffordableOnly) {
         purchases = purchases.where((p) => _canPurchase(viewModel, p)).toList();
         if (purchases.isEmpty) continue;
       }

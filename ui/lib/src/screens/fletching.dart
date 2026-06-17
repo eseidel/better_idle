@@ -18,7 +18,6 @@ class FletchingPage extends StatefulWidget {
 }
 
 class _FletchingPageState extends State<FletchingPage> {
-  FletchingAction? _selectedAction;
   final Set<MelvorId> _collapsedCategories = {};
   final ScrollController _scrollController = ScrollController();
 
@@ -31,9 +30,10 @@ class _FletchingPageState extends State<FletchingPage> {
   @override
   Widget build(BuildContext context) {
     const skill = Skill.fletching;
-    final registries = context.state.registries;
+    final state = context.state;
+    final registries = state.registries;
     final actions = registries.fletching.actions;
-    final skillState = context.state.skillState(skill);
+    final skillState = state.skillState(skill);
     final skillLevel = skillState.skillLevel;
 
     // Group actions by category
@@ -47,12 +47,23 @@ class _FletchingPageState extends State<FletchingPage> {
       }
     }
 
+    // Restore last selected action from persisted state.
+    final savedActionId =
+        state.selectedSkillAction(skill) ?? state.currentActionId?.localId;
+    FletchingAction? savedAction;
+    if (savedActionId != null) {
+      savedAction = actions.cast<FletchingAction?>().firstWhere(
+        (a) => a?.id.localId == savedActionId,
+        orElse: () => null,
+      );
+    }
+
     // Default to first unlocked action if none selected
     final unlockedActions = actions
         .where((FletchingAction a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
-        _selectedAction ??
+        savedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : actions.first);
 
     return GameScaffold(
@@ -91,9 +102,12 @@ class _FletchingPageState extends State<FletchingPage> {
                     skill: skill,
                     skillLevel: skillLevel,
                     onSelect: (action) {
-                      setState(() {
-                        _selectedAction = action;
-                      });
+                      context.dispatch(
+                        SetSelectedSkillAction(
+                          skill: skill,
+                          actionId: action.id.localId,
+                        ),
+                      );
                       _scrollController.animateTo(
                         0,
                         duration: const Duration(milliseconds: 300),

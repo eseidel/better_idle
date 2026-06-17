@@ -23,7 +23,6 @@ class RunecraftingPage extends StatefulWidget {
 
 class _RunecraftingPageState extends State<RunecraftingPage>
     with SingleTickerProviderStateMixin {
-  RunecraftingAction? _selectedAction;
   TabController? _tabController;
   List<RunecraftingCategory>? _categories;
 
@@ -70,12 +69,24 @@ class _RunecraftingPageState extends State<RunecraftingPage>
       }
     }
 
+    // Restore last selected action from persisted state.
+    final savedActionId =
+        context.state.selectedSkillAction(skill) ??
+        context.state.currentActionId?.localId;
+    RunecraftingAction? savedAction;
+    if (savedActionId != null) {
+      savedAction = actions.cast<RunecraftingAction?>().firstWhere(
+        (a) => a?.id.localId == savedActionId,
+        orElse: () => null,
+      );
+    }
+
     // Default to first unlocked action if none selected
     final unlockedActions = actions
         .where((RunecraftingAction a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
-        _selectedAction ??
+        savedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : null);
 
     return GameScaffold(
@@ -108,9 +119,12 @@ class _RunecraftingPageState extends State<RunecraftingPage>
                         selectedAction: selectedAction,
                         skillLevel: skillLevel,
                         onSelectAction: (action) {
-                          setState(() {
-                            _selectedAction = action;
-                          });
+                          context.dispatch(
+                            SetSelectedSkillAction(
+                              skill: skill,
+                              actionId: action.id.localId,
+                            ),
+                          );
                         },
                       );
                     }).toList(),

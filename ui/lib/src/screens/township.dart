@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/context_extensions.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 import 'package:ui/src/widgets/style.dart';
@@ -31,10 +32,15 @@ class TownshipPage extends StatefulWidget {
 
 class _TownshipPageState extends State<TownshipPage> {
   final Set<MelvorId> _collapsedBiomes = {};
-  _BuildingFilter _buildingFilter = _BuildingFilter.all;
 
   @override
   Widget build(BuildContext context) {
+    final filterName = context.state.viewPreference('township.buildingFilter');
+    final buildingFilter = _BuildingFilter.values.firstWhere(
+      (f) => f.name == filterName,
+      orElse: () => _BuildingFilter.all,
+    );
+
     return StoreConnector<GlobalState, TownshipViewModel>(
       converter: (store) => TownshipViewModel(store.state),
       builder: (context, viewModel) {
@@ -81,9 +87,15 @@ class _TownshipPageState extends State<TownshipPage> {
                       }
                     });
                   },
-                  buildingFilter: _buildingFilter,
-                  onFilterChanged: (filter) =>
-                      setState(() => _buildingFilter = filter),
+                  buildingFilter: buildingFilter,
+                  onFilterChanged: (filter) {
+                    context.dispatch(
+                      SetViewPreference(
+                        key: 'township.buildingFilter',
+                        value: filter.name,
+                      ),
+                    );
+                  },
                 ),
                 _TasksView(viewModel: viewModel),
               ],

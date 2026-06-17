@@ -18,7 +18,6 @@ class HerblorePage extends StatefulWidget {
 }
 
 class _HerblorePageState extends State<HerblorePage> {
-  HerbloreAction? _selectedAction;
   final Set<MelvorId> _collapsedCategories = {};
   final ScrollController _scrollController = ScrollController();
 
@@ -31,9 +30,10 @@ class _HerblorePageState extends State<HerblorePage> {
   @override
   Widget build(BuildContext context) {
     const skill = Skill.herblore;
-    final registries = context.state.registries;
+    final state = context.state;
+    final registries = state.registries;
     final actions = registries.herblore.actions;
-    final skillState = context.state.skillState(skill);
+    final skillState = state.skillState(skill);
     final skillLevel = skillState.skillLevel;
 
     // Group actions by category
@@ -47,15 +47,26 @@ class _HerblorePageState extends State<HerblorePage> {
       }
     }
 
+    // Restore last selected action from persisted state.
+    final savedActionId =
+        state.selectedSkillAction(skill) ?? state.currentActionId?.localId;
+    HerbloreAction? savedAction;
+    if (savedActionId != null) {
+      savedAction = actions.cast<HerbloreAction?>().firstWhere(
+        (a) => a?.id.localId == savedActionId,
+        orElse: () => null,
+      );
+    }
+
     // Default to first unlocked action if none selected
     final unlockedActions = actions
         .where((HerbloreAction a) => skillLevel >= a.unlockLevel)
         .toList();
     final selectedAction =
-        _selectedAction ??
+        savedAction ??
         (unlockedActions.isNotEmpty ? unlockedActions.first : null);
     final selectedMasteryLevel = selectedAction != null
-        ? context.state.actionState(selectedAction.id).masteryLevel
+        ? state.actionState(selectedAction.id).masteryLevel
         : 1;
 
     return GameScaffold(
@@ -97,9 +108,12 @@ class _HerblorePageState extends State<HerblorePage> {
                     skillLevel: skillLevel,
                     title: 'Available Potions',
                     onSelect: (action) {
-                      setState(() {
-                        _selectedAction = action;
-                      });
+                      context.dispatch(
+                        SetSelectedSkillAction(
+                          skill: skill,
+                          actionId: action.id.localId,
+                        ),
+                      );
                       _scrollController.animateTo(
                         0,
                         duration: const Duration(milliseconds: 300),
