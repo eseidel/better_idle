@@ -453,6 +453,7 @@ class ModifierProvider with ModifierAccessors {
 
     // --- Agility obstacle modifiers ---
     // Built obstacles provide passive modifiers while in the course.
+    // Negative values are halved if halveAgilityObstacleNegatives applies.
     for (final slotState in agility.slots.values) {
       final obstacleId = slotState.obstacleId;
       if (obstacleId == null) continue;
@@ -464,7 +465,11 @@ class ModifierProvider with ModifierAccessors {
         if (mod.name != name) continue;
         for (final modEntry in mod.entries) {
           if (scope.matches(modEntry.scope)) {
-            total += modEntry.value;
+            var value = modEntry.value;
+            if (value < 0) {
+              value = _halveIfNegated(value, obstacleId.localId);
+            }
+            total += value;
           }
         }
       }
@@ -513,5 +518,18 @@ class ModifierProvider with ModifierAccessors {
     }
 
     return total;
+  }
+
+  /// Halves a negative modifier value if halveAgilityObstacleNegatives is
+  /// active for the given obstacle. Uses a separate getModifier call; since
+  /// halveAgilityObstacleNegatives is never negative, the recursive call
+  /// cannot re-enter this path.
+  num _halveIfNegated(num value, MelvorId obstacleLocalId) {
+    final halve = getModifier(
+      'halveAgilityObstacleNegatives',
+      actionId: obstacleLocalId,
+    );
+    if (halve > 0) return value / 2;
+    return value;
   }
 }
