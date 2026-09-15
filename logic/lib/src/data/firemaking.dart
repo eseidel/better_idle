@@ -53,6 +53,10 @@ class FiremakingAction extends SkillAction {
     );
   }
 
+  /// Firemaking charges 60% of the log's base burn interval.
+  @override
+  double get masteryActionTime => maxDuration.inSeconds * 0.6;
+
   /// The Melvor log ID (e.g., "melvorD:Normal_Logs").
   final MelvorId logId;
 

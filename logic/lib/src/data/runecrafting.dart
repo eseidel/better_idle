@@ -40,7 +40,7 @@ class RunecraftingCategory {
 /// Runecrafting actions consume rune essence and produce runes, staves,
 /// and magical gear.
 @immutable
-class RunecraftingAction extends SkillAction {
+class RunecraftingAction extends SkillAction with ArtisanMasteryTime {
   const RunecraftingAction({
     required super.id,
     required super.name,

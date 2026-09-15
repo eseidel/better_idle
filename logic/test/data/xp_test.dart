@@ -350,31 +350,48 @@ void main() {
     });
   });
 
-  group('actionTimeForMastery', () {
+  group('masteryActionTime', () {
     test('woodcutting uses actual action duration', () {
       final action = testRegistries.woodcuttingAction('Normal Tree');
-      expect(
-        actionTimeForMastery(action),
-        action.maxDuration.inSeconds.toDouble(),
-      );
+      expect(action.masteryActionTime, action.maxDuration.inSeconds.toDouble());
     });
 
     test('fishing uses actual action duration', () {
       final action = testRegistries.fishingAction('Raw Shrimp');
-      expect(
-        actionTimeForMastery(action),
-        action.maxDuration.inSeconds.toDouble(),
-      );
+      expect(action.masteryActionTime, action.maxDuration.inSeconds.toDouble());
     });
 
     test('smithing uses fixed 1.7 seconds', () {
       final action = testRegistries.smithingAction('Bronze Dagger');
-      expect(actionTimeForMastery(action), 1.7);
+      expect(action.masteryActionTime, 1.7);
+    });
+
+    test('every artisan skill uses the flat artisan time', () {
+      // ArtisanMasteryTime is shared rather than repeated per skill, so one
+      // action from each artisan skill should agree.
+      for (final skill in [
+        Skill.smithing,
+        Skill.fletching,
+        Skill.crafting,
+        Skill.herblore,
+        Skill.runecrafting,
+        Skill.summoning,
+        Skill.altMagic,
+      ]) {
+        final actions = testRegistries.actionsForSkill(skill);
+        expect(actions, isNotEmpty, reason: '$skill has no actions');
+        expect(actions.first.masteryActionTime, 1.7, reason: '$skill');
+      }
     });
 
     test('firemaking uses 60% of burn interval', () {
       final action = testRegistries.firemakingAction('Burn Normal Logs');
-      expect(actionTimeForMastery(action), action.maxDuration.inSeconds * 0.6);
+      expect(action.masteryActionTime, action.maxDuration.inSeconds * 0.6);
+    });
+
+    test('cooking uses 85% of cooking interval', () {
+      final action = testRegistries.cookingAction('Shrimp');
+      expect(action.masteryActionTime, action.maxDuration.inSeconds * 0.85);
     });
   });
 

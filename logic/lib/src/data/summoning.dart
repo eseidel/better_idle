@@ -12,7 +12,7 @@ const _summoningDuration = Duration(seconds: 5);
 /// The nonShardItemCosts from JSON are converted to alternativeRecipes,
 /// where each alternative uses the same shards plus one of the non-shard items.
 @immutable
-class SummoningAction extends SkillAction {
+class SummoningAction extends SkillAction with ArtisanMasteryTime {
   const SummoningAction({
     required super.id,
     required super.name,
