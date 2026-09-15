@@ -507,6 +507,7 @@ class _GrowingPlotContent extends StatelessWidget {
     final ticks = plotState.growthTicksRemaining ?? 0;
     final timeRemaining = _formatTimeRemaining(ticks);
     final successChance = _getSuccessChance(plotState.compostApplied);
+    final masteryXp = state.actionState(crop.id).masteryXp;
 
     return Expanded(
       child: Column(
@@ -529,6 +530,8 @@ class _GrowingPlotContent extends StatelessWidget {
           const SizedBox(height: 8),
           Text('$timeRemaining remaining'),
           Text('Success: $successChance%'),
+          const SizedBox(height: 4),
+          MasteryProgressCell(masteryXp: masteryXp),
           const Spacer(),
           Align(
             alignment: Alignment.centerRight,
@@ -573,6 +576,46 @@ class _ReadyPlotContent extends StatelessWidget {
         const SizedBox(height: 4),
         const Text('Ready to Harvest!'),
       ],
+    );
+  }
+}
+
+/// A crop row in the planting dialogs, showing the crop's mastery progress
+/// alongside its seed requirements.
+class _CropListTile extends StatelessWidget {
+  const _CropListTile({
+    required this.crop,
+    required this.detail,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final FarmingCrop crop;
+  final String detail;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.state;
+    final product = state.registries.items.byId(crop.productId);
+    final actionState = state.actionState(crop.id);
+
+    return ListTile(
+      leading: ItemImage(item: product, size: 40),
+      title: Text(product.name),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(detail),
+          const SizedBox(height: 4),
+          MasteryProgressCell(masteryXp: actionState.masteryXp),
+        ],
+      ),
+      isThreeLine: true,
+      enabled: enabled,
+      onTap: onTap,
     );
   }
 }
@@ -710,21 +753,18 @@ class _CropSelectionDialogState extends State<_CropSelectionDialog> {
                       itemBuilder: (context, index) {
                         final crop = availableCrops[index];
                         final seed = registries.items.byId(crop.seedId);
-                        final product = registries.items.byId(crop.productId);
                         final seedCount = widget.state.inventory.countOfItem(
                           seed,
                         );
 
                         final canPlant = selectedCompost.hasEnough;
 
-                        return ListTile(
-                          leading: ItemImage(item: product, size: 40),
-                          title: Text(product.name),
-                          subtitle: Text(
-                            'Level ${crop.unlockLevel} · '
-                            '${crop.seedCost} ${seed.name} '
-                            '(have $seedCount)',
-                          ),
+                        return _CropListTile(
+                          crop: crop,
+                          detail:
+                              'Level ${crop.unlockLevel} · '
+                              '${crop.seedCost} ${seed.name} '
+                              '(have $seedCount)',
                           enabled: canPlant,
                           onTap: canPlant
                               ? () => _plantCrop(crop, selectedCompost)
@@ -908,7 +948,6 @@ class _PlantAllDialogState extends State<_PlantAllDialog> {
                       itemBuilder: (context, index) {
                         final crop = availableCrops[index];
                         final seed = registries.items.byId(crop.seedId);
-                        final product = registries.items.byId(crop.productId);
                         final seedCount = widget.state.inventory.countOfItem(
                           seed,
                         );
@@ -916,16 +955,14 @@ class _PlantAllDialogState extends State<_PlantAllDialog> {
                             crop.seedCost * widget.emptyCount;
                         final plotsPlantable = seedCount ~/ crop.seedCost;
 
-                        return ListTile(
-                          leading: ItemImage(item: product, size: 40),
-                          title: Text(product.name),
-                          subtitle: Text(
-                            'Level ${crop.unlockLevel} · '
-                            '${crop.seedCost} seeds each · '
-                            'need $totalSeedsNeeded '
-                            '(have $seedCount, '
-                            'enough for $plotsPlantable)',
-                          ),
+                        return _CropListTile(
+                          crop: crop,
+                          detail:
+                              'Level ${crop.unlockLevel} · '
+                              '${crop.seedCost} seeds each · '
+                              'need $totalSeedsNeeded '
+                              '(have $seedCount, '
+                              'enough for $plotsPlantable)',
                           enabled: canAfford,
                           onTap: canAfford
                               ? () => _plantAll(crop, selectedCompost)
