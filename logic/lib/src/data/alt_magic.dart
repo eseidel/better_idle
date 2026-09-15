@@ -10,7 +10,7 @@ const _altMagicCastDuration = Duration(seconds: 2);
 ///
 /// Alt Magic spells convert items or resources into other items/GP.
 @immutable
-class AltMagicAction extends SkillAction {
+class AltMagicAction extends SkillAction with ArtisanMasteryTime {
   const AltMagicAction({
     required super.id,
     required super.name,

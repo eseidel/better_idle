@@ -38,7 +38,7 @@ class CraftingCategory {
 /// Crafting actions consume materials and produce items like leather armor,
 /// jewelry, and other craftable goods.
 @immutable
-class CraftingAction extends SkillAction {
+class CraftingAction extends SkillAction with ArtisanMasteryTime {
   const CraftingAction({
     required super.id,
     required super.name,

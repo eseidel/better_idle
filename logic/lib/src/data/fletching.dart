@@ -37,7 +37,7 @@ class FletchingCategory {
 ///
 /// Fletching actions consume logs/materials and produce arrows, bows, etc.
 @immutable
-class FletchingAction extends SkillAction {
+class FletchingAction extends SkillAction with ArtisanMasteryTime {
   const FletchingAction({
     required super.id,
     required super.name,

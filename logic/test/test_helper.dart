@@ -107,6 +107,9 @@ extension RegistriesTestHelpers on Registries {
 
   SkillAction fletchingAction(String name) =>
       _bySkillAndName(Skill.fletching, name) as SkillAction;
+
+  CookingAction cookingAction(String name) =>
+      _bySkillAndName(Skill.cooking, name) as CookingAction;
 }
 
 /// Extension providing a short helper for the common test pattern of

@@ -150,6 +150,10 @@ class CookingAction extends SkillAction {
     );
   }
 
+  /// Cooking charges 85% of the recipe's base cooking interval.
+  @override
+  double get masteryActionTime => maxDuration.inSeconds * 0.85;
+
   /// The Melvor product ID (e.g., "melvorD:Shrimp").
   final MelvorId productId;
 
