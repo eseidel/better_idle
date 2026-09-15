@@ -9,7 +9,10 @@ const _service = 'github';
 
 /// Codecov API client for the better_idle repo.
 class CodecovApi {
-  final _client = http.Client();
+  /// Creates a client. Pass [client] to supply a stub in tests.
+  CodecovApi({http.Client? client}) : _client = client ?? http.Client();
+
+  final http.Client _client;
 
   String get _repoBase => '$_baseUrl/$_service/$_owner/repos/$_repo';
 
