@@ -53,7 +53,7 @@ class _OpenResultDialogState extends State<OpenResultDialog>
 
   Future<void> _startAnimations() async {
     for (final controller in _controllers) {
-      unawaited(controller.forward());
+      controller.forward();
       await Future<void>.delayed(_staggerDelay);
     }
   }
