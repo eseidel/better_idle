@@ -22,7 +22,7 @@ jobs:
       dart_packages: ${{ steps.affected.outputs.dart_packages }}
       flutter_packages: ${{ steps.affected.outputs.flutter_packages }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           # affected_packages diffs against origin/main, which isn't in
@@ -64,7 +64,7 @@ jobs:
       run:
         working-directory: ${{ matrix.path }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - uses: dart-lang/setup-dart@v1
@@ -87,7 +87,7 @@ jobs:
           dart pub global activate coverage && \
           dart test --coverage=coverage && \
           dart pub global run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --report-on=lib --check-ignore
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         with:
           flags: ${{ matrix.name }}
 
@@ -104,7 +104,7 @@ jobs:
       run:
         working-directory: ${{ matrix.path }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Setup Flutter
@@ -130,7 +130,7 @@ jobs:
       - name: Integration Tests
         if: matrix.has_integration_tests == true
         run: flutter test integration_test
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         with:
           flags: ${{ matrix.name }}
 
@@ -138,10 +138,10 @@ jobs:
     name: CSpell
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
-      - uses: streetsidesoftware/cspell-action@v6
+      - uses: streetsidesoftware/cspell-action@v9
         with:
           incremental_files_only: false
           config: cspell.config.yaml
