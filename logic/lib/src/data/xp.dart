@@ -136,7 +136,7 @@ final int maxMasteryXp = _xpTable[99];
 /// Maximum mastery pool XP for a skill is 500,000 multiplied by the total
 /// number of actions in that skill.
 int maxMasteryPoolXpForSkill(Registries registries, Skill skill) {
-  final actionCount = registries.actionsForSkill(skill).length;
+  final actionCount = registries.masteryActionsForSkill(skill).length;
   return actionCount * 500000;
 }
 
@@ -209,6 +209,12 @@ XpProgress _progressForXp(int xp, {int? maxLevel}) {
   );
 }
 
+/// Returns the mastery pool XP earned alongside [masteryXp] for one action.
+///
+/// Melvor grants 25% of the action's mastery XP to the skill's mastery pool.
+int masteryPoolXpForMasteryXp(int masteryXp) =>
+    max(1, (0.25 * masteryXp).toInt());
+
 /// Calculates the amount of mastery XP gained per action from raw values.
 /// Derived from https://wiki.melvoridle.com/w/Mastery.
 ///
@@ -223,9 +229,12 @@ int calculateMasteryXpPerAction({
   required int itemMasteryLevel,
   required double bonus, // e.g. 0.1 for +10%
 }) {
-  final actionsForSkill = registries.actionsForSkill(action.skill);
-  final totalItemsInSkill = actionsForSkill.length;
-  final actionTime = actionTimeForMastery(action);
+  final masteryActions = registries.masteryActionsForSkill(action.skill);
+  final totalItemsInSkill = masteryActions.length;
+  // A skill with no registered actions has no mastery to spread; bail out
+  // rather than dividing by zero below.
+  if (totalItemsInSkill == 0) return 1;
+  final actionTime = actionTimeForMastery(registries, action);
   // Total Mastery for Skill = number of items × 99 (max mastery level per item)
   final totalMasteryForSkill = totalItemsInSkill * 99;
   final masteryPortion =
@@ -244,7 +253,9 @@ int calculateMasteryXpPerAction({
 ///   - Firemaking: 60% of base burn interval
 ///   - Cooking: 85% of base cooking interval
 ///   - Smithing: 1.7 seconds
-double actionTimeForMastery(SkillAction action) {
+/// - Farming: growth interval divided by the category's masteryXPDivider,
+///   which normalizes the multi-hour growth times across categories
+double actionTimeForMastery(Registries registries, SkillAction action) {
   switch (action.skill) {
     // Gathering skills use actual action duration
     case Skill.woodcutting:
@@ -271,9 +282,15 @@ double actionTimeForMastery(SkillAction action) {
     case Skill.altMagic:
       return 1.7;
 
-    // Farming uses growth duration for mastery calculations
+    // Farming divides the crop's growth interval by its category's
+    // masteryXPDivider (3 for Allotments/Herbs, 10 for Trees), which
+    // normalizes wildly different growth times to a comparable action time.
     case Skill.farming:
-      return action.maxDuration.inSeconds.toDouble();
+      final categoryId = action.categoryId;
+      final divider = categoryId == null
+          ? 1
+          : registries.farming.categoryById(categoryId)?.masteryXPDivider ?? 1;
+      return action.maxDuration.inSeconds / max(1, divider);
 
     // Combat skills don't use mastery XP in the same way
     case Skill.combat:

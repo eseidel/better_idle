@@ -20,16 +20,8 @@ double masteryXpGlobalPercentIncrease(
 /// Returns the amount of mastery XP gained per action.
 /// For hot-path usage during tick processing, use the builder overload
 /// which caches totalMasteryLevel and unlockedActionsCount.
-int masteryXpPerAction(GlobalState state, SkillAction action) {
-  return calculateMasteryXpPerAction(
-    registries: state.registries,
-    action: action,
-    unlockedActions: state.unlockedActionsCount(action.skill),
-    playerTotalMasteryLevel: state.totalMasteryLevelForSkill(action.skill),
-    itemMasteryLevel: state.actionState(action.id).masteryLevel,
-    bonus: 0,
-  );
-}
+int masteryXpPerAction(GlobalState state, SkillAction action) =>
+    state.masteryXpPerAction(action);
 
 /// Cached version of [masteryXpPerAction] using the builder's caches.
 int _masteryXpPerActionCached(StateUpdateBuilder builder, SkillAction action) {
@@ -665,7 +657,7 @@ class XpPerAction {
   const XpPerAction({required this.xp, required this.masteryXp});
   final int xp;
   final int masteryXp;
-  int get masteryPoolXp => max(1, (0.25 * masteryXp).toInt());
+  int get masteryPoolXp => masteryPoolXpForMasteryXp(masteryXp);
 }
 
 /// Computes XP and mastery XP for a skill action.

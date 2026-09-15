@@ -354,7 +354,7 @@ void main() {
     test('woodcutting uses actual action duration', () {
       final action = testRegistries.woodcuttingAction('Normal Tree');
       expect(
-        actionTimeForMastery(action),
+        actionTimeForMastery(testRegistries, action),
         action.maxDuration.inSeconds.toDouble(),
       );
     });
@@ -362,19 +362,35 @@ void main() {
     test('fishing uses actual action duration', () {
       final action = testRegistries.fishingAction('Raw Shrimp');
       expect(
-        actionTimeForMastery(action),
+        actionTimeForMastery(testRegistries, action),
         action.maxDuration.inSeconds.toDouble(),
       );
     });
 
     test('smithing uses fixed 1.7 seconds', () {
       final action = testRegistries.smithingAction('Bronze Dagger');
-      expect(actionTimeForMastery(action), 1.7);
+      expect(actionTimeForMastery(testRegistries, action), 1.7);
     });
 
     test('firemaking uses 60% of burn interval', () {
       final action = testRegistries.firemakingAction('Burn Normal Logs');
-      expect(actionTimeForMastery(action), action.maxDuration.inSeconds * 0.6);
+      expect(
+        actionTimeForMastery(testRegistries, action),
+        action.maxDuration.inSeconds * 0.6,
+      );
+    });
+
+    test('farming divides growth interval by the category mastery divider', () {
+      // Allotments and Trees have wildly different growth times but land on
+      // the same mastery action time once the category divider is applied.
+      final potatoes = testRegistries.farming.crops.firstWhere(
+        (crop) => crop.name == 'Potatoes',
+      );
+      final oak = testRegistries.farming.crops.firstWhere(
+        (crop) => crop.name == 'Oak_Logs',
+      );
+      expect(actionTimeForMastery(testRegistries, potatoes), 2400);
+      expect(actionTimeForMastery(testRegistries, oak), 2400);
     });
   });
 

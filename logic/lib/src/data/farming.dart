@@ -119,24 +119,28 @@ class FarmingPlot {
 
 /// A farming crop parsed from Melvor data.
 ///
-/// Extends Action (not SkillAction) to get ActionId for mastery tracking.
-/// Crops are never activeAction, but mastery XP is tracked per-action using
-/// `Map&lt;ActionId, ActionState&gt;` in GlobalState.
+/// Crops are never the player's active action - they grow in the background
+/// and are harvested - but they do track mastery, so [canBeActiveAction] is
+/// false while the rest of the [SkillAction] machinery (xp, unlockLevel,
+/// maxDuration) drives the mastery calculations.
 @immutable
-class FarmingCrop extends Action {
-  const FarmingCrop({
+class FarmingCrop extends SkillAction {
+  FarmingCrop({
     required super.id,
     required super.name,
     required this.categoryId,
-    required this.level,
-    required this.baseXP,
+    required super.unlockLevel,
+    required super.xp,
     required this.seedCost,
-    required this.baseInterval,
+    required int baseInterval,
     required this.seedId,
     required this.productId,
     required this.baseQuantity,
     required this.media,
-  }) : super(skill: Skill.farming);
+  }) : super(
+         skill: Skill.farming,
+         duration: Duration(milliseconds: baseInterval),
+       );
 
   /// Creates a test crop with sensible defaults.
   FarmingCrop.test({
@@ -148,8 +152,8 @@ class FarmingCrop extends Action {
          id: ActionId.test(Skill.farming, name),
          name: name,
          categoryId: categoryId,
-         level: 1,
-         baseXP: 8,
+         unlockLevel: 1,
+         xp: 8,
          seedCost: 1,
          baseInterval: 30000,
          seedId: seedId,
@@ -184,8 +188,8 @@ class FarmingCrop extends Action {
         json['categoryID'] as String,
         defaultNamespace: namespace,
       ),
-      level: json['level'] as int,
-      baseXP: json['baseExperience'] as int,
+      unlockLevel: json['level'] as int,
+      xp: json['baseExperience'] as int,
       seedCost: (json['seedCost'] as Map<String, dynamic>)['quantity'] as int,
       baseInterval: json['baseInterval'] as int,
       seedId: seedId,
@@ -195,18 +199,21 @@ class FarmingCrop extends Action {
     );
   }
 
+  @override
   final MelvorId categoryId;
-  final int level;
-  final int baseXP;
+
   final int seedCost;
-  final int baseInterval; // milliseconds
   final MelvorId seedId;
   final MelvorId productId;
   final int baseQuantity;
   final String media;
 
+  /// Crops grow in the background; they are never the active action.
+  @override
+  bool get canBeActiveAction => false;
+
   /// Growth duration for this crop.
-  Duration get growthDuration => Duration(milliseconds: baseInterval);
+  Duration get growthDuration => maxDuration;
 
   /// Growth time in ticks.
   int get growthTicks => ticksFromDuration(growthDuration);

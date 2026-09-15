@@ -654,11 +654,11 @@ class _CropSelectionDialogState extends State<_CropSelectionDialog> {
 
     // Filter to crops the player can plant (has level and seeds)
     final availableCrops = allCrops.where((crop) {
-      if (crop.level > farmingLevel) return false;
+      if (crop.unlockLevel > farmingLevel) return false;
       final seed = registries.items.byId(crop.seedId);
       final seedCount = widget.state.inventory.countOfItem(seed);
       return seedCount >= crop.seedCost;
-    }).toList()..sort((a, b) => a.level.compareTo(b.level));
+    }).toList()..sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
 
     final compostOptions = _getCompostOptions(widget.state);
     final selectedCompost = compostOptions[_selectedCompostIndex];
@@ -721,7 +721,7 @@ class _CropSelectionDialogState extends State<_CropSelectionDialog> {
                           leading: ItemImage(item: product, size: 40),
                           title: Text(product.name),
                           subtitle: Text(
-                            'Level ${crop.level} · '
+                            'Level ${crop.unlockLevel} · '
                             '${crop.seedCost} ${seed.name} '
                             '(have $seedCount)',
                           ),
@@ -819,11 +819,11 @@ class _PlantAllDialogState extends State<_PlantAllDialog> {
 
     final allCrops = registries.farming.cropsForCategory(widget.category.id);
     final availableCrops = allCrops.where((crop) {
-      if (crop.level > farmingLevel) return false;
+      if (crop.unlockLevel > farmingLevel) return false;
       final seed = registries.items.byId(crop.seedId);
       final seedCount = widget.state.inventory.countOfItem(seed);
       return seedCount >= crop.seedCost;
-    }).toList()..sort((a, b) => a.level.compareTo(b.level));
+    }).toList()..sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
 
     final compostOptions = _getCompostOptions(widget.state);
     final selectedCompost = compostOptions[_selectedCompostIndex];
@@ -920,7 +920,7 @@ class _PlantAllDialogState extends State<_PlantAllDialog> {
                           leading: ItemImage(item: product, size: 40),
                           title: Text(product.name),
                           subtitle: Text(
-                            'Level ${crop.level} · '
+                            'Level ${crop.unlockLevel} · '
                             '${crop.seedCost} seeds each · '
                             'need $totalSeedsNeeded '
                             '(have $seedCount, '
