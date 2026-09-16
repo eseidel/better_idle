@@ -26,7 +26,7 @@ class _SpendMasteryDialogState extends State<SpendMasteryDialog> {
       converter: (store) => store.state,
       builder: (context, state) {
         final actions = state.registries
-            .actionsForSkill(widget.skill)
+            .masteryActionsForSkill(widget.skill)
             .where((a) => state.actionState(a.id).masteryLevel < 99)
             .toList();
         final skillState = state.skillState(widget.skill);

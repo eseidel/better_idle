@@ -49,10 +49,11 @@ void main() {
         seedId: seed.id,
         productId: const MelvorId('test:potato'),
         seedCost: 1,
-        level: 1,
-        baseXP: 10,
+        unlockLevel: 1,
+        xp: 10,
         baseInterval: 10000, // 10 seconds = 100 ticks
         baseQuantity: 1,
+        masteryXPDivider: 1,
         media: '',
       );
 
@@ -93,10 +94,11 @@ void main() {
         seedId: seed.id,
         productId: const MelvorId('test:potato'),
         seedCost: 1,
-        level: 1,
-        baseXP: 10,
+        unlockLevel: 1,
+        xp: 10,
         baseInterval: 10000, // 10 seconds = 100 ticks
         baseQuantity: 1,
+        masteryXPDivider: 1,
         media: '',
       );
 
@@ -195,10 +197,11 @@ void main() {
         seedId: seed.id,
         productId: const MelvorId('test:potato'),
         seedCost: 1,
-        level: 1,
-        baseXP: 10,
+        unlockLevel: 1,
+        xp: 10,
         baseInterval: 10000, // 10 seconds = 100 ticks
         baseQuantity: 1,
+        masteryXPDivider: 1,
         media: '',
       );
 

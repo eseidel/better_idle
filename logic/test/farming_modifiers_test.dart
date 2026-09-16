@@ -24,10 +24,11 @@ void main() {
       seedId: seed.id,
       productId: product.id,
       seedCost: 3,
-      level: 1,
-      baseXP: 8,
+      unlockLevel: 1,
+      xp: 8,
       baseInterval: 10000,
       baseQuantity: 5,
+      masteryXPDivider: 1,
       media: '',
     );
   });

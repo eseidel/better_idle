@@ -1234,7 +1234,7 @@ void main() {
     test('farming plots grow while doing other actions', () {
       // Get a level-1 farming crop and an unlocked plot
       final crops = testRegistries.farmingCrops;
-      final allotmentCrops = crops.where((c) => c.level == 1).toList();
+      final allotmentCrops = crops.where((c) => c.unlockLevel == 1).toList();
       expect(allotmentCrops, isNotEmpty, reason: 'Should have level 1 crops');
 
       final crop = allotmentCrops.first;
@@ -1297,7 +1297,7 @@ void main() {
     test('farming plots grow with no foreground action', () {
       // Get a level-1 farming crop and an unlocked plot
       final crops = testRegistries.farmingCrops;
-      final allotmentCrops = crops.where((c) => c.level == 1).toList();
+      final allotmentCrops = crops.where((c) => c.unlockLevel == 1).toList();
       final crop = allotmentCrops.first;
       final seed = testItems.byId(crop.seedId);
 
@@ -1351,7 +1351,7 @@ void main() {
 
       // Get a level-1 crop
       final crops = testRegistries.farmingCrops;
-      final levelOneCrops = crops.where((c) => c.level == 1).toList();
+      final levelOneCrops = crops.where((c) => c.unlockLevel == 1).toList();
       expect(levelOneCrops, isNotEmpty);
 
       final crop = levelOneCrops.first;
@@ -1388,7 +1388,7 @@ void main() {
     test('harvesting a ready crop yields product and clears plot', () {
       // Get a level-1 farming crop and an unlocked plot
       final crops = testRegistries.farmingCrops;
-      final allotmentCrops = crops.where((c) => c.level == 1).toList();
+      final allotmentCrops = crops.where((c) => c.unlockLevel == 1).toList();
       final crop = allotmentCrops.first;
       final seed = testItems.byId(crop.seedId);
       final product = testItems.byId(crop.productId);
@@ -1439,7 +1439,7 @@ void main() {
     test('farming growth continues across multiple tick cycles', () {
       // Get a level-1 farming crop and an unlocked plot
       final crops = testRegistries.farmingCrops;
-      final allotmentCrops = crops.where((c) => c.level == 1).toList();
+      final allotmentCrops = crops.where((c) => c.unlockLevel == 1).toList();
       final crop = allotmentCrops.first;
       final seed = testItems.byId(crop.seedId);
 

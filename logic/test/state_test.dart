@@ -36,7 +36,7 @@ void main() {
   test('GlobalState toJson/fromJson round-trip', () {
     // Get farming data for plot state testing
     final crops = testRegistries.farmingCrops;
-    final levelOneCrops = crops.where((c) => c.level == 1).toList();
+    final levelOneCrops = crops.where((c) => c.unlockLevel == 1).toList();
     final crop = levelOneCrops.first;
     final initialPlots = testRegistries.farming.initialPlots().toList();
     final plotId1 = initialPlots[0];
@@ -1508,7 +1508,7 @@ void main() {
     setUpAll(() {
       // Get a level-1 crop for testing
       final crops = testRegistries.farmingCrops;
-      final levelOneCrops = crops.where((c) => c.level == 1).toList();
+      final levelOneCrops = crops.where((c) => c.unlockLevel == 1).toList();
       crop = levelOneCrops.first;
       seed = testItems.byId(crop.seedId);
       product = testItems.byId(crop.productId);
@@ -1752,7 +1752,7 @@ void main() {
     test('returns true when farming plot is growing', () {
       // Get farming data
       final crops = testRegistries.farmingCrops;
-      final levelOneCrops = crops.where((c) => c.level == 1).toList();
+      final levelOneCrops = crops.where((c) => c.unlockLevel == 1).toList();
       final crop = levelOneCrops.first;
       final plotId = testRegistries.farming.initialPlots().first;
 
@@ -1769,7 +1769,7 @@ void main() {
     test('returns false when farming plot is ready to harvest', () {
       // Get farming data
       final crops = testRegistries.farmingCrops;
-      final levelOneCrops = crops.where((c) => c.level == 1).toList();
+      final levelOneCrops = crops.where((c) => c.unlockLevel == 1).toList();
       final crop = levelOneCrops.first;
       final plotId = testRegistries.farming.initialPlots().first;
 
@@ -1804,7 +1804,7 @@ void main() {
     test('returns true with multiple growing plots', () {
       // Get farming data
       final crops = testRegistries.farmingCrops;
-      final levelOneCrops = crops.where((c) => c.level == 1).toList();
+      final levelOneCrops = crops.where((c) => c.unlockLevel == 1).toList();
       final crop = levelOneCrops.first;
       final initialPlots = testRegistries.farming.initialPlots().toList();
       final plotId1 = initialPlots[0];

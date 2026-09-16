@@ -2060,9 +2060,21 @@ class GlobalState {
   int unlockedActionsCount(Skill skill) {
     final level = skillState(skill).skillLevel;
     return registries
-        .actionsForSkill(skill)
+        .masteryActionsForSkill(skill)
         .where((action) => action.unlockLevel <= level)
         .length;
+  }
+
+  /// Returns the mastery XP earned for one completed [action].
+  int masteryXpPerAction(SkillAction action) {
+    return calculateMasteryXpPerAction(
+      registries: registries,
+      action: action,
+      unlockedActions: unlockedActionsCount(action.skill),
+      playerTotalMasteryLevel: totalMasteryLevelForSkill(action.skill),
+      itemMasteryLevel: actionState(action.id).masteryLevel,
+      bonus: 0,
+    );
   }
 
   /// Returns the sum of all mastery levels for all actions in a skill.
@@ -2070,7 +2082,7 @@ class GlobalState {
   /// All actions default to level 1 even if untrained.
   int totalMasteryLevelForSkill(Skill skill) {
     var total = 0;
-    for (final action in registries.actionsForSkill(skill)) {
+    for (final action in registries.masteryActionsForSkill(skill)) {
       total += actionState(action.id).masteryLevel;
     }
     return total;
@@ -2179,7 +2191,7 @@ class GlobalState {
     Skill skill, {
     int floorPercent = 0,
   }) {
-    final actions = registries.actionsForSkill(skill);
+    final actions = registries.masteryActionsForSkill(skill);
     if (actions.isEmpty) return null;
 
     final maxPoolXp = maxMasteryPoolXpForSkill(registries, skill);
@@ -3081,10 +3093,10 @@ class GlobalState {
 
     // Validate player has required level
     final farmingLevel = skillState(Skill.farming).skillLevel;
-    if (farmingLevel < crop.level) {
+    if (farmingLevel < crop.unlockLevel) {
       throw StateError(
         'Farming level $farmingLevel is too low for ${crop.name} '
-        '(requires ${crop.level})',
+        '(requires ${crop.unlockLevel})',
       );
     }
 
@@ -3131,7 +3143,7 @@ class GlobalState {
     var newState = copyWith(inventory: newInventory, plotStates: newPlotStates);
 
     if (category?.giveXPOnPlant ?? false) {
-      newState = newState.addSkillXp(Skill.farming, crop.baseXP);
+      newState = newState.addSkillXp(Skill.farming, crop.xp);
     }
 
     return newState;
@@ -3280,8 +3292,8 @@ class GlobalState {
     var newState = copyWith(inventory: newInventory);
 
     final xpAmount = category.scaleXPWithQuantity
-        ? crop.baseXP * quantity
-        : crop.baseXP;
+        ? crop.xp * quantity
+        : crop.xp;
     final oldLevel = skillState(Skill.farming).skillLevel;
     newState = newState.addSkillXp(Skill.farming, xpAmount);
     final newLevel = newState.skillState(Skill.farming).skillLevel;
@@ -3291,9 +3303,15 @@ class GlobalState {
       changes = changes.addingSkillLevel(Skill.farming, oldLevel, newLevel);
     }
 
-    // Award mastery XP
-    final masteryXpAmount = crop.baseXP ~/ category.masteryXPDivider;
-    newState = newState.addActionMasteryXp(cropId, masteryXpAmount);
+    // Award mastery XP (and the matching mastery pool XP) exactly like every
+    // other skill does per completed action.
+    final masteryXpAmount = newState.masteryXpPerAction(crop);
+    newState = newState
+        .addActionMasteryXp(cropId, masteryXpAmount)
+        .addSkillMasteryXp(
+          Skill.farming,
+          masteryPoolXpForMasteryXp(masteryXpAmount),
+        );
 
     return (newState.clearPlot(plotId), changes);
   }

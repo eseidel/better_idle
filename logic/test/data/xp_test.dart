@@ -393,6 +393,32 @@ void main() {
       final action = testRegistries.cookingAction('Shrimp');
       expect(action.masteryActionTime, action.maxDuration.inSeconds * 0.85);
     });
+
+    test('farming divides growth interval by the category mastery divider', () {
+      // Trees grow for hours longer than allotments. Dividing by the
+      // category's masteryXPDivider (3 for allotments, 10 for trees) brings
+      // the two onto the same scale - here, the same 2400s.
+      final potatoes = testRegistries.farming.crops.firstWhere(
+        (crop) => crop.name == 'Potatoes',
+      );
+      final oak = testRegistries.farming.crops.firstWhere(
+        (crop) => crop.name == 'Oak_Logs',
+      );
+      expect(potatoes.maxDuration.inSeconds, 7200);
+      expect(oak.maxDuration.inSeconds, 24000);
+      expect(potatoes.masteryActionTime, 2400);
+      expect(oak.masteryActionTime, 2400);
+
+      // Every crop lands in the same order of magnitude, rather than the
+      // 10x spread the raw growth intervals have.
+      for (final crop in testRegistries.farming.crops) {
+        expect(
+          crop.masteryActionTime,
+          inInclusiveRange(1800, 5760),
+          reason: crop.name,
+        );
+      }
+    });
   });
 
   group('maxMasteryPoolXpForSkill', () {
