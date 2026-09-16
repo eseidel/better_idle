@@ -155,6 +155,32 @@ void main() {
       expect(xpAfter - xpBefore, 0);
     });
 
+    test('planting a crop above the player farming level throws', () {
+      // treeCrop unlocks above level 1, and GlobalState.empty starts at 1.
+      expect(treeCrop.unlockLevel, greaterThan(1));
+
+      final seed = testRegistries.items.byId(treeCrop.seedId);
+      final state = GlobalState.empty(testRegistries).copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: treeCrop.seedCost),
+        ]),
+      );
+
+      expect(
+        () => state.plantCrop(plotId, treeCrop),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              contains(treeCrop.name),
+              contains('requires ${treeCrop.unlockLevel}'),
+            ),
+          ),
+        ),
+      );
+    });
+
     test('harvesting tree grants fixed XP (not scaled by quantity)', () {
       final random = Random(42);
       final seed = testRegistries.items.byId(treeCrop.seedId);
