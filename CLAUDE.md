@@ -7,14 +7,27 @@ Inspired by Melvor Idle, built with Flutter for mobile. Two packages:
 
 - `dart test -r failures-only` - run tests (from logic/)
 - `flutter test -r failures-only` - run tests (from ui/)
-- `dart run tool/warm_cache.dart` - pre-fetch Melvor data into .cache so the
-  parallel test suites don't each hit the CDN (from logic/)
+- `dart run tool/warm_cache.dart` - pre-fetch Melvor data into .cache (from
+  logic/). Tests read the cache and never populate it, so a cold cache fails
+  every run. From ui/ use `dart run ../logic/tool/warm_cache.dart .cache`
 - `dart run tool/coverage.dart` - run tests with coverage summary (from logic/)
 - `dart run tool/coverage.dart --check` - same, fails if below 90%
 - `dart run bin/solver.dart` - run the A* solver CLI (from logic/)
 - `dart format .` and `dart fix --apply .` - run from repo root
-- `dart analyze --fatal-infos` - CI treats infos as errors (e.g. line length)
+- `dart analyze --fatal-infos` - the bar for new code. CI currently enforces
+  only `--fatal-warnings`; `logic` carries 45 pre-existing infos (see #283)
 - `npx cspell` - spell check, must pass
+
+## Gotchas
+
+- **Every workflow tracks Flutter `stable`.** Nothing is pinned, so a Flutter
+  release can turn CI red with no code change - a new lint is the usual cause.
+  Check which version CI used before concluding the failure is yours.
+- **`ui/pubspec.lock` is checked in** (it is an app, not a library) so a newer
+  SDK re-resolving it is a real change to commit, not noise.
+- **`.github/workflows/shorebird_ci.yaml` is generated** by `shorebird_ci
+  generate`, which drops the two hand-added cache-warming steps. They are
+  marked with comments; re-add them after regenerating.
 
 ## Key Architecture
 
