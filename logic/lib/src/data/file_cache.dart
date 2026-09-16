@@ -21,28 +21,34 @@ final _random = Random();
 ///
 /// Fetches game data from the Melvor CDN and caches it on disk.
 class FileCache implements Cache {
-  /// Creates a new cache instance.
+  /// Creates a cache that fetches missing assets from the CDN.
   ///
   /// The [cacheDir] is where cached files will be stored.
   /// An optional [client] can be provided for testing.
-  /// When [offline] is true the cache never reaches the network and throws if
-  /// an asset is missing - see [offline].
-  FileCache({required this.cacheDir, http.Client? client, this.offline = false})
-    : _client = client ?? http.Client();
+  FileCache({required this.cacheDir, http.Client? client})
+    : _client = client ?? http.Client(),
+      _offline = false;
 
-  /// The directory where cached files are stored.
-  final Directory cacheDir;
-
-  /// Whether to refuse to fetch anything, serving only what is already on
-  /// disk.
+  /// Creates a cache that serves only what is already on disk, throwing if an
+  /// asset is missing.
   ///
-  /// Tests run with this on. `dart test` runs every suite in its own isolate
-  /// and each one loads the registries, so letting tests fetch means dozens of
+  /// Tests use this. `dart test` runs every suite in its own isolate and each
+  /// one loads the registries, so letting tests fetch means dozens of
   /// concurrent downloads racing each other: a run either passes, or loses a
   /// whole file's tests to a dropped connection while still reporting a
   /// mostly-green summary. Refusing outright turns "sometimes broken" into a
   /// single deterministic error that names the fix.
-  final bool offline;
+  ///
+  /// This is a separate constructor rather than a flag so that callers cannot
+  /// reach the network by forgetting an argument.
+  FileCache.offline({required this.cacheDir})
+    : _client = http.Client(),
+      _offline = true;
+
+  /// The directory where cached files are stored.
+  final Directory cacheDir;
+
+  final bool _offline;
 
   final http.Client _client;
 
@@ -110,7 +116,7 @@ class FileCache implements Cache {
       return cacheFile;
     }
 
-    if (offline) {
+    if (_offline) {
       throw CacheException(
         'Asset cache is cold: ${cacheFile.path} is missing.\n'
         'Tests never download game data, so they cannot flake on the '

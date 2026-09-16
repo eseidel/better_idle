@@ -1,5 +1,5 @@
 import 'package:logic/logic.dart';
-import 'package:logic/src/data/registries_io.dart';
+import 'package:logic/testing.dart';
 
 /// Standard registries for tests. Must call [loadTestRegistries] first.
 late Registries testRegistries;
@@ -43,7 +43,7 @@ Item testCompost({required int compostValue, int harvestBonus = 0}) {
 /// first; a cold cache fails every run with that instruction rather than
 /// failing some runs.
 Future<void> loadTestRegistries() async {
-  testRegistries = await loadRegistries(offline: true);
+  testRegistries = await loadCachedRegistries();
 }
 
 /// Shorthand accessors for test registries.

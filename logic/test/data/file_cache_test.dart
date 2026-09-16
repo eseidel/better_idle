@@ -12,7 +12,7 @@ void main() {
 
   group('FileCache offline', () {
     test('throws a message naming the fix when the cache is cold', () async {
-      final cache = FileCache(cacheDir: tempDir, offline: true);
+      final cache = FileCache.offline(cacheDir: tempDir);
       addTearDown(cache.close);
 
       await expectLater(
@@ -38,7 +38,7 @@ void main() {
           ..writeAsStringSync(jsonEncode({'data': <String, dynamic>{}}));
         expect(file.existsSync(), isTrue);
 
-        final cache = FileCache(cacheDir: tempDir, offline: true);
+        final cache = FileCache.offline(cacheDir: tempDir);
         addTearDown(cache.close);
 
         // No client is provided, so any fetch attempt would fail rather than
