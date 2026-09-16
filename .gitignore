@@ -32,7 +32,9 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
-/coverage/
+# Unanchored so it covers every package's coverage output, not just the
+# repository root: dart test --coverage writes <package>/coverage.
+coverage/
 
 # Symbolication related
 app.*.symbols
