@@ -350,47 +350,74 @@ void main() {
     });
   });
 
-  group('actionTimeForMastery', () {
+  group('masteryActionTime', () {
     test('woodcutting uses actual action duration', () {
       final action = testRegistries.woodcuttingAction('Normal Tree');
-      expect(
-        actionTimeForMastery(testRegistries, action),
-        action.maxDuration.inSeconds.toDouble(),
-      );
+      expect(action.masteryActionTime, action.maxDuration.inSeconds.toDouble());
     });
 
     test('fishing uses actual action duration', () {
       final action = testRegistries.fishingAction('Raw Shrimp');
-      expect(
-        actionTimeForMastery(testRegistries, action),
-        action.maxDuration.inSeconds.toDouble(),
-      );
+      expect(action.masteryActionTime, action.maxDuration.inSeconds.toDouble());
     });
 
     test('smithing uses fixed 1.7 seconds', () {
       final action = testRegistries.smithingAction('Bronze Dagger');
-      expect(actionTimeForMastery(testRegistries, action), 1.7);
+      expect(action.masteryActionTime, 1.7);
+    });
+
+    test('every artisan skill uses the flat artisan time', () {
+      // ArtisanMasteryTime is shared rather than repeated per skill, so one
+      // action from each artisan skill should agree.
+      for (final skill in [
+        Skill.smithing,
+        Skill.fletching,
+        Skill.crafting,
+        Skill.herblore,
+        Skill.runecrafting,
+        Skill.summoning,
+        Skill.altMagic,
+      ]) {
+        final actions = testRegistries.actionsForSkill(skill);
+        expect(actions, isNotEmpty, reason: '$skill has no actions');
+        expect(actions.first.masteryActionTime, 1.7, reason: '$skill');
+      }
     });
 
     test('firemaking uses 60% of burn interval', () {
       final action = testRegistries.firemakingAction('Burn Normal Logs');
-      expect(
-        actionTimeForMastery(testRegistries, action),
-        action.maxDuration.inSeconds * 0.6,
-      );
+      expect(action.masteryActionTime, action.maxDuration.inSeconds * 0.6);
+    });
+
+    test('cooking uses 85% of cooking interval', () {
+      final action = testRegistries.cookingAction('Shrimp');
+      expect(action.masteryActionTime, action.maxDuration.inSeconds * 0.85);
     });
 
     test('farming divides growth interval by the category mastery divider', () {
-      // Allotments and Trees have wildly different growth times but land on
-      // the same mastery action time once the category divider is applied.
+      // Trees grow for hours longer than allotments. Dividing by the
+      // category's masteryXPDivider (3 for allotments, 10 for trees) brings
+      // the two onto the same scale - here, the same 2400s.
       final potatoes = testRegistries.farming.crops.firstWhere(
         (crop) => crop.name == 'Potatoes',
       );
       final oak = testRegistries.farming.crops.firstWhere(
         (crop) => crop.name == 'Oak_Logs',
       );
-      expect(actionTimeForMastery(testRegistries, potatoes), 2400);
-      expect(actionTimeForMastery(testRegistries, oak), 2400);
+      expect(potatoes.maxDuration.inSeconds, 7200);
+      expect(oak.maxDuration.inSeconds, 24000);
+      expect(potatoes.masteryActionTime, 2400);
+      expect(oak.masteryActionTime, 2400);
+
+      // Every crop lands in the same order of magnitude, rather than the
+      // 10x spread the raw growth intervals have.
+      for (final crop in testRegistries.farming.crops) {
+        expect(
+          crop.masteryActionTime,
+          inInclusiveRange(1800, 5760),
+          reason: crop.name,
+        );
+      }
     });
   });
 

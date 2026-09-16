@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:logic/src/data/action_id.dart';
 import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
@@ -137,6 +139,7 @@ class FarmingCrop extends SkillAction {
     required this.productId,
     required this.baseQuantity,
     required this.media,
+    required this.masteryXPDivider,
   }) : super(
          skill: Skill.farming,
          duration: Duration(milliseconds: baseInterval),
@@ -148,6 +151,7 @@ class FarmingCrop extends SkillAction {
     required MelvorId categoryId,
     required MelvorId seedId,
     required MelvorId productId,
+    int masteryXPDivider = 1,
   }) : this(
          id: ActionId.test(Skill.farming, name),
          name: name,
@@ -160,11 +164,13 @@ class FarmingCrop extends SkillAction {
          productId: productId,
          baseQuantity: 5,
          media: '',
+         masteryXPDivider: masteryXPDivider,
        );
 
   factory FarmingCrop.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
+    required int Function(MelvorId categoryId) masteryXPDividerFor,
   }) {
     final seedId = MelvorId.fromJsonWithNamespace(
       (json['seedCost'] as Map<String, dynamic>)['id'] as String,
@@ -180,14 +186,16 @@ class FarmingCrop extends SkillAction {
       defaultNamespace: namespace,
     );
 
+    final categoryId = MelvorId.fromJsonWithNamespace(
+      json['categoryID'] as String,
+      defaultNamespace: namespace,
+    );
+
     return FarmingCrop(
       id: ActionId(Skill.farming.id, localId),
       // recipes do not have a name, so use the id
       name: json['id'] as String,
-      categoryId: MelvorId.fromJsonWithNamespace(
-        json['categoryID'] as String,
-        defaultNamespace: namespace,
-      ),
+      categoryId: categoryId,
       unlockLevel: json['level'] as int,
       xp: json['baseExperience'] as int,
       seedCost: (json['seedCost'] as Map<String, dynamic>)['quantity'] as int,
@@ -196,6 +204,7 @@ class FarmingCrop extends SkillAction {
       productId: productId,
       baseQuantity: json['baseQuantity'] as int? ?? 1,
       media: json['media'] as String? ?? '',
+      masteryXPDivider: masteryXPDividerFor(categoryId),
     );
   }
 
@@ -208,9 +217,24 @@ class FarmingCrop extends SkillAction {
   final int baseQuantity;
   final String media;
 
+  /// The crop category's `masteryXPDivider`, copied in at parse time.
+  ///
+  /// Held on the crop rather than looked up through the category so that
+  /// [masteryActionTime] stays a property of the action, like every other
+  /// skill's.
+  final int masteryXPDivider;
+
   /// Crops grow in the background; they are never the active action.
   @override
   bool get canBeActiveAction => false;
+
+  /// Farming charges mastery for the growth interval divided by the crop
+  /// category's `masteryXPDivider` (3 for Allotments and Herbs, 10 for
+  /// Trees). Trees grow for hours longer than allotments; the divider puts
+  /// every category on the same scale, 1800s to 5760s across all 24 crops.
+  @override
+  double get masteryActionTime =>
+      maxDuration.inSeconds / max(1, masteryXPDivider);
 
   /// Growth duration for this crop.
   Duration get growthDuration => maxDuration;

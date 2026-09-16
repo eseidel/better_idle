@@ -234,7 +234,7 @@ int calculateMasteryXpPerAction({
   // A skill with no registered actions has no mastery to spread; bail out
   // rather than dividing by zero below.
   if (totalItemsInSkill == 0) return 1;
-  final actionTime = actionTimeForMastery(registries, action);
+  final actionTime = action.masteryActionTime;
   // Total Mastery for Skill = number of items × 99 (max mastery level per item)
   final totalMasteryForSkill = totalItemsInSkill * 99;
   final masteryPortion =
@@ -242,67 +242,4 @@ int calculateMasteryXpPerAction({
   final itemPortion = itemMasteryLevel * (totalItemsInSkill / 10);
   final baseValue = masteryPortion + itemPortion;
   return max(1, baseValue * actionTime * 0.5 * (1 + bonus)).toInt();
-}
-
-/// Returns the "action time" in seconds used for mastery XP calculation.
-///
-/// Action time varies by skill type:
-/// - Gathering skills (Woodcutting, Mining, Thieving, Fishing): actual action
-///   duration in seconds
-/// - Artisan skills: fixed values regardless of actual duration:
-///   - Firemaking: 60% of base burn interval
-///   - Cooking: 85% of base cooking interval
-///   - Smithing: 1.7 seconds
-/// - Farming: growth interval divided by the category's masteryXPDivider,
-///   which normalizes the multi-hour growth times across categories
-double actionTimeForMastery(Registries registries, SkillAction action) {
-  switch (action.skill) {
-    // Gathering skills use actual action duration
-    case Skill.woodcutting:
-    case Skill.mining:
-    case Skill.thieving:
-    case Skill.fishing:
-    case Skill.agility:
-    case Skill.astrology:
-      return action.maxDuration.inSeconds.toDouble();
-
-    // Artisan skills use fixed values
-    case Skill.firemaking:
-      // 60% of the log's base burn interval
-      return action.maxDuration.inSeconds * 0.6;
-    case Skill.cooking:
-      // 85% of the recipe's base cooking interval
-      return action.maxDuration.inSeconds * 0.85;
-    case Skill.smithing:
-    case Skill.fletching:
-    case Skill.crafting:
-    case Skill.herblore:
-    case Skill.runecrafting:
-    case Skill.summoning:
-    case Skill.altMagic:
-      return 1.7;
-
-    // Farming divides the crop's growth interval by its category's
-    // masteryXPDivider (3 for Allotments/Herbs, 10 for Trees), which
-    // normalizes wildly different growth times to a comparable action time.
-    case Skill.farming:
-      final categoryId = action.categoryId;
-      final divider = categoryId == null
-          ? 1
-          : registries.farming.categoryById(categoryId)?.masteryXPDivider ?? 1;
-      return action.maxDuration.inSeconds / max(1, divider);
-
-    // Combat skills don't use mastery XP in the same way
-    case Skill.combat:
-    case Skill.strength:
-    case Skill.defence:
-    case Skill.ranged:
-    case Skill.magic:
-    case Skill.prayer:
-    case Skill.slayer:
-    case Skill.town:
-    case Skill.hitpoints:
-    case Skill.attack:
-      return action.maxDuration.inSeconds.toDouble();
-  }
 }

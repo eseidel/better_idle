@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logic/logic.dart';
-import 'package:logic/src/data/registries_io.dart';
+import 'package:logic/testing.dart';
 import 'package:scoped_deps/scoped_deps.dart';
 import 'package:ui/src/logic/redux_actions.dart';
 import 'package:ui/src/services/logger.dart';
@@ -2377,7 +2377,7 @@ void main() {
     late SkillAction normalTree;
 
     setUpAll(() async {
-      registries = await loadRegistries();
+      registries = await loadCachedRegistries();
       normalTree = registries
           .actionsForSkill(Skill.woodcutting)
           .firstWhere((a) => a.name == 'Normal Tree');
@@ -2426,7 +2426,7 @@ void main() {
     late Registries registries;
 
     setUpAll(() async {
-      registries = await loadRegistries();
+      registries = await loadCachedRegistries();
     });
 
     test('spreads pool XP across actions', () {
@@ -2461,7 +2461,7 @@ void main() {
     late Item woodcuttingToken;
 
     setUpAll(() async {
-      registries = await loadRegistries();
+      registries = await loadCachedRegistries();
       woodcuttingToken = registries.items.byName('Mastery Token (Woodcutting)');
     });
 
@@ -2488,7 +2488,7 @@ void main() {
     late Item woodcuttingToken;
 
     setUpAll(() async {
-      registries = await loadRegistries();
+      registries = await loadCachedRegistries();
       woodcuttingToken = registries.items.byName('Mastery Token (Woodcutting)');
     });
 
@@ -2515,7 +2515,7 @@ void main() {
     late Item woodcuttingToken;
 
     setUpAll(() async {
-      registries = await loadRegistries();
+      registries = await loadCachedRegistries();
       woodcuttingToken = registries.items.byName('Mastery Token (Woodcutting)');
     });
 
@@ -2901,7 +2901,7 @@ void main() {
     const bankSlotId = MelvorId('melvorD:Extra_Bank_Slot');
 
     setUpAll(() async {
-      registries = await loadRegistries();
+      registries = await loadCachedRegistries();
     });
 
     test('purchases bank slot and deducts gp', () {

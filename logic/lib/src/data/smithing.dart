@@ -40,7 +40,7 @@ class SmithingCategory {
 ///
 /// Smithing actions consume ore/bars and produce equipment or bars.
 @immutable
-class SmithingAction extends SkillAction {
+class SmithingAction extends SkillAction with ArtisanMasteryTime {
   const SmithingAction({
     required super.id,
     required super.name,

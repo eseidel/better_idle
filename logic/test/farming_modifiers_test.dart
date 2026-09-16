@@ -28,6 +28,7 @@ void main() {
       xp: 8,
       baseInterval: 10000,
       baseQuantity: 5,
+      masteryXPDivider: 1,
       media: '',
     );
   });

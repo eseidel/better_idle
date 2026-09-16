@@ -40,7 +40,7 @@ class HerbloreCategory {
 /// Each recipe can produce multiple tiers of potions (I, II, III, IV) based on
 /// mastery level. Use [productIdForMasteryLevel] to get the correct output.
 @immutable
-class HerbloreAction extends SkillAction {
+class HerbloreAction extends SkillAction with ArtisanMasteryTime {
   HerbloreAction({
     required super.id,
     required super.name,

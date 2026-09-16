@@ -85,6 +85,7 @@ words:
   - prereq
   - prereqs
   - proguard
+  - pubspec
   - regen
   - regens
   - respawn

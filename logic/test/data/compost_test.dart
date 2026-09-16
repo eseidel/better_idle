@@ -53,6 +53,7 @@ void main() {
         xp: 10,
         baseInterval: 10000, // 10 seconds = 100 ticks
         baseQuantity: 1,
+        masteryXPDivider: 1,
         media: '',
       );
 
@@ -97,6 +98,7 @@ void main() {
         xp: 10,
         baseInterval: 10000, // 10 seconds = 100 ticks
         baseQuantity: 1,
+        masteryXPDivider: 1,
         media: '',
       );
 
@@ -199,6 +201,7 @@ void main() {
         xp: 10,
         baseInterval: 10000, // 10 seconds = 100 ticks
         baseQuantity: 1,
+        masteryXPDivider: 1,
         media: '',
       );
 

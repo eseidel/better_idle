@@ -157,6 +157,13 @@ abstract class Action {
   final Skill skill;
 }
 
+/// Artisan skills charge a flat mastery action time regardless of how long
+/// the recipe actually takes.
+mixin ArtisanMasteryTime on SkillAction {
+  @override
+  double get masteryActionTime => 1.7;
+}
+
 /// Represents an alternative recipe for a SkillAction.
 /// Used when Melvor data has `alternativeCosts` instead of `itemCosts`.
 /// Each alternative has different input costs and may produce different
@@ -263,6 +270,20 @@ class SkillAction extends Action {
   /// `Registries.actionsForSkill` but included in
   /// `Registries.masteryActionsForSkill`.
   bool get canBeActiveAction => true;
+
+  /// Seconds of "action time" the mastery XP formula charges for one
+  /// completion of this action. See https://wiki.melvoridle.com/w/Mastery.
+  ///
+  /// This is deliberately not the same thing as [maxDuration]. Duration
+  /// answers "how long does this take" - which for mining and thieving means
+  /// the interval between attempts, not the time to completion. Mastery
+  /// charges its own rate, so each action states it rather than having the
+  /// formula infer it from the skill.
+  ///
+  /// Defaults to the action's own duration, which is what the gathering
+  /// skills use. Artisan skills mix in [ArtisanMasteryTime]; firemaking and
+  /// cooking scale their interval.
+  double get masteryActionTime => maxDuration.inSeconds.toDouble();
 
   double expectedOutputPerTick(MelvorId itemId) {
     return (outputs[itemId] ?? 0) / ticksFromDuration(meanDuration).toDouble();
