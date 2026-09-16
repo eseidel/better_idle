@@ -37,8 +37,13 @@ Item testCompost({required int compostValue, int harvestBonus = 0}) {
 }
 
 /// Loads the test registries. Call this in setUpAll().
+///
+/// Offline on purpose: tests read the cache but never populate it, so they
+/// cannot race each other over the network. Run `dart run tool/warm_cache.dart`
+/// first; a cold cache fails every run with that instruction rather than
+/// failing some runs.
 Future<void> loadTestRegistries() async {
-  testRegistries = await loadRegistries();
+  testRegistries = await loadRegistries(offline: true);
 }
 
 /// Shorthand accessors for test registries.

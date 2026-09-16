@@ -7,8 +7,14 @@ import 'package:logic/src/data/registries.dart';
 ///
 /// This should be called during app startup or in setUpAll() for tests.
 /// It's safe to call multiple times; subsequent calls are no-ops.
-Future<Registries> loadRegistries({Directory? cacheDir}) async {
-  final cache = FileCache(cacheDir: cacheDir ?? defaultCacheDir);
+Future<Registries> loadRegistries({
+  Directory? cacheDir,
+  bool offline = false,
+}) async {
+  final cache = FileCache(
+    cacheDir: cacheDir ?? defaultCacheDir,
+    offline: offline,
+  );
   try {
     return await loadRegistriesFromCache(cache);
   } finally {

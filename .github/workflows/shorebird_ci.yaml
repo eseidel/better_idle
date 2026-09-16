@@ -132,6 +132,10 @@ jobs:
       - name: Bloc Lint
         if: matrix.has_bloc_lint == true
         run: bloc lint .
+      # Hand-added, see the dart_ci job: tests read the asset cache but never
+      # populate it, so warm it before they run.
+      - name: Warm asset cache
+        run: '[ -f ../logic/tool/warm_cache.dart ] && dart run ../logic/tool/warm_cache.dart .cache || true'
       - run: flutter test --coverage
       - name: Integration Tests
         if: matrix.has_integration_tests == true

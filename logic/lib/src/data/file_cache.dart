@@ -25,11 +25,24 @@ class FileCache implements Cache {
   ///
   /// The [cacheDir] is where cached files will be stored.
   /// An optional [client] can be provided for testing.
-  FileCache({required this.cacheDir, http.Client? client})
+  /// When [offline] is true the cache never reaches the network and throws if
+  /// an asset is missing - see [offline].
+  FileCache({required this.cacheDir, http.Client? client, this.offline = false})
     : _client = client ?? http.Client();
 
   /// The directory where cached files are stored.
   final Directory cacheDir;
+
+  /// Whether to refuse to fetch anything, serving only what is already on
+  /// disk.
+  ///
+  /// Tests run with this on. `dart test` runs every suite in its own isolate
+  /// and each one loads the registries, so letting tests fetch means dozens of
+  /// concurrent downloads racing each other: a run either passes, or loses a
+  /// whole file's tests to a dropped connection while still reporting a
+  /// mostly-green summary. Refusing outright turns "sometimes broken" into a
+  /// single deterministic error that names the fix.
+  final bool offline;
 
   final http.Client _client;
 
@@ -95,6 +108,15 @@ class FileCache implements Cache {
     // Check cache first.
     if (cacheFile.existsSync()) {
       return cacheFile;
+    }
+
+    if (offline) {
+      throw CacheException(
+        'Asset cache is cold: ${cacheFile.path} is missing.\n'
+        'Tests never download game data, so they cannot flake on the '
+        'network.\nPopulate the cache first:\n\n'
+        '    dart run tool/warm_cache.dart\n',
+      );
     }
 
     // Fetch from CDN.

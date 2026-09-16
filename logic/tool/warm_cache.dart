@@ -10,14 +10,20 @@
 // from disk.
 //
 //     dart run tool/warm_cache.dart
+import 'dart:io';
+
 import 'package:logic/src/data/registries_io.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
+  // Defaults to .cache relative to the current directory, matching
+  // defaultCacheDir. Pass a path to warm another package's cache.
+  final cacheDir = args.isEmpty ? null : Directory(args.first);
   final stopwatch = Stopwatch()..start();
-  final registries = await loadRegistries();
+  final registries = await loadRegistries(cacheDir: cacheDir);
   stopwatch.stop();
   print(
-    'Warmed cache in ${stopwatch.elapsedMilliseconds}ms '
+    'Warmed ${cacheDir?.path ?? '.cache'} in '
+    '${stopwatch.elapsedMilliseconds}ms '
     '(${registries.allActions.length} actions).',
   );
 }
