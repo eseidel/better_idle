@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:http/http.dart' as http;
 import 'package:logic/src/data/cache.dart';
@@ -8,6 +9,13 @@ import 'package:path/path.dart' as path;
 export 'package:logic/src/data/cache.dart';
 
 final defaultCacheDir = Directory('.cache');
+
+/// Returns a suffix unique to this writer, so parallel test suites racing to
+/// populate the same cache entry never share a temp file.
+String _tempSuffix() =>
+    '$pid-${DateTime.now().microsecondsSinceEpoch}-${_random.nextInt(1 << 32)}';
+
+final _random = Random();
 
 /// Native file-system-based implementation of [Cache].
 ///
@@ -42,6 +50,38 @@ class FileCache implements Cache {
     return _ensureDataFile(fullDataPath);
   }
 
+  /// Fetches [url], retrying transient network failures with backoff.
+  ///
+  /// `dart test` runs suites in parallel and each one populates the cache on
+  /// a cold start, so a single run can open dozens of concurrent connections
+  /// for the same files. Without a retry a reset connection fails that
+  /// suite's setUpAll, which silently drops every test in the file.
+  Future<http.Response> _fetchWithRetry(Uri url, String assetPath) async {
+    const maxAttempts = 4;
+    var delay = const Duration(milliseconds: 250);
+
+    for (var attempt = 1; ; attempt++) {
+      final lastAttempt = attempt == maxAttempts;
+      try {
+        final response = await _client.get(url);
+        if (response.statusCode == 200) return response;
+        // 4xx will not change on a retry; only 5xx is worth repeating.
+        if (lastAttempt || response.statusCode < 500) {
+          throw CacheException(
+            'Failed to fetch $assetPath: HTTP ${response.statusCode}',
+          );
+        }
+      } on IOException {
+        if (lastAttempt) rethrow;
+      } on http.ClientException {
+        if (lastAttempt) rethrow;
+      }
+
+      await Future<void>.delayed(delay);
+      delay *= 2;
+    }
+  }
+
   /// Ensures an asset is cached and returns the cached file.
   ///
   /// The [assetPath] should be relative to the CDN base URL,
@@ -59,17 +99,23 @@ class FileCache implements Cache {
 
     // Fetch from CDN.
     final url = Uri.parse('$cdnBase/$assetPath');
-    final response = await _client.get(url);
+    final response = await _fetchWithRetry(url, assetPath);
 
-    if (response.statusCode != 200) {
-      throw CacheException(
-        'Failed to fetch $assetPath: HTTP ${response.statusCode}',
-      );
-    }
-
-    // Cache the response.
+    // Cache the response by writing to a unique temp file and renaming it
+    // into place. `dart test` runs suites in parallel, and each one populates
+    // the cache on a cold start; a plain write is not atomic, so a concurrent
+    // reader can see the file exist (above) while it is still partially
+    // written and fail to parse it. rename(2) is atomic, so readers see
+    // either no file or a complete one.
     await cacheFile.parent.create(recursive: true);
-    await cacheFile.writeAsBytes(response.bodyBytes);
+    final temp = File('${cacheFile.path}.${_tempSuffix()}');
+    try {
+      await temp.writeAsBytes(response.bodyBytes);
+      await temp.rename(cacheFile.path);
+    } on Object {
+      if (temp.existsSync()) temp.deleteSync();
+      rethrow;
+    }
 
     return cacheFile;
   }
