@@ -82,6 +82,12 @@ jobs:
       - name: Bloc Lint
         if: matrix.has_bloc_lint == true
         run: bloc lint .
+      # Hand-added: `shorebird_ci generate` will drop this step. Each test
+      # suite runs in its own isolate and populates the asset cache itself, so
+      # a cold cache means dozens of concurrent CDN fetches and intermittent
+      # connection resets. Warming once first leaves one fetch.
+      - name: Warm asset cache
+        run: '[ -f tool/warm_cache.dart ] && dart run tool/warm_cache.dart || true'
       - name: Run Tests
         run: |
           dart pub global activate coverage && \
