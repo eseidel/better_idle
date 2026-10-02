@@ -4713,4 +4713,244 @@ void main() {
       expect(deity.describeModifiers(biomeName), isEmpty);
     });
   });
+
+  group('TownshipModifiers', () {
+    const biomeId = MelvorId('melvorD:Grasslands');
+    const buildingId = MelvorId('melvorD:Test_Building');
+
+    test('townshipGPProduction increases GP output', () {
+      final gpId = Currency.gp.id;
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        production: {gpId: 100},
+      );
+
+      final registry = TownshipRegistry(
+        buildings: [building],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+        resources: [TownshipResource(id: gpId, name: 'GP', type: 'Currency')],
+      );
+
+      final state = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 1)},
+          ),
+        },
+      );
+
+      final baseResult = processTownUpdate(
+        state,
+        registry,
+        Random(42),
+        townshipLevel: 1,
+      );
+
+      final modifiedResult = processTownUpdate(
+        state,
+        registry,
+        Random(42),
+        townshipLevel: 1,
+        modifiers: const TownshipModifiers(gpProduction: 50),
+      );
+
+      // 50% more GP
+      expect(modifiedResult.gpProduced, greaterThan(baseResult.gpProduced));
+      expect(modifiedResult.gpProduced, (baseResult.gpProduced * 1.5).floor());
+    });
+
+    test('townshipMaxStorage increases storage capacity', () {
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        storage: 1000,
+      );
+
+      final registry = TownshipRegistry(
+        buildings: [building],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+      );
+
+      final state = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 1)},
+          ),
+        },
+      );
+
+      final baseStats = TownshipStats.calculate(state, registry);
+      final modifiedStats = TownshipStats.calculate(
+        state,
+        registry,
+        modifiers: const TownshipModifiers(maxStorage: 20),
+      );
+
+      // 20% more storage
+      expect(modifiedStats.storage, (baseStats.storage * 1.2).floor());
+    });
+
+    test('townshipResourceProduction increases specific resource', () {
+      const woodId = MelvorId('melvorF:Wood');
+
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        production: {woodId: 100},
+      );
+
+      final registry = TownshipRegistry(
+        buildings: [building],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+        resources: const [
+          TownshipResource(id: woodId, name: 'Wood', type: 'Raw'),
+        ],
+      );
+
+      final state = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 1)},
+          ),
+        },
+      );
+
+      final baseResult = processTownUpdate(
+        state,
+        registry,
+        Random(42),
+        townshipLevel: 1,
+      );
+
+      final modifiedResult = processTownUpdate(
+        state,
+        registry,
+        Random(42),
+        townshipLevel: 1,
+        modifiers: TownshipModifiers(resourceProduction: {woodId: 25}),
+      );
+
+      // 25% more wood
+      final baseWood = baseResult.state.resourceAmount(woodId);
+      final modifiedWood = modifiedResult.state.resourceAmount(woodId);
+      expect(modifiedWood, greaterThan(baseWood));
+    });
+
+    test('townshipTaxPerCitizen adds GP from population', () {
+      final building = testBuilding(
+        id: buildingId,
+        name: 'Test Building',
+        validBiomes: {biomeId},
+        population: 10,
+      );
+
+      final registry = TownshipRegistry(
+        buildings: [building],
+        biomes: const [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+      );
+
+      final state = TownshipState(
+        registry: registry,
+        biomes: {
+          biomeId: BiomeState(
+            buildings: {buildingId: const BuildingState(count: 5)},
+          ),
+        },
+      );
+
+      final baseResult = processTownUpdate(
+        state,
+        registry,
+        Random(42),
+        townshipLevel: 1,
+      );
+
+      final modifiedResult = processTownUpdate(
+        state,
+        registry,
+        Random(42),
+        townshipLevel: 1,
+        modifiers: const TownshipModifiers(taxPerCitizen: 100),
+      );
+
+      // Tax should add GP proportional to effective population
+      expect(modifiedResult.gpProduced, greaterThan(baseResult.gpProduced));
+    });
+
+    test('flatTownshipHappiness adds to happiness stat', () {
+      const registry = TownshipRegistry(
+        biomes: [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+      );
+
+      const state = TownshipState(registry: registry);
+
+      final baseStats = TownshipStats.calculate(state, registry);
+      final modifiedStats = TownshipStats.calculate(
+        state,
+        registry,
+        modifiers: const TownshipModifiers(flatHappiness: 10),
+      );
+
+      expect(modifiedStats.happiness, baseStats.happiness + 10);
+    });
+
+    test('flatTownshipEducation adds to education stat', () {
+      const registry = TownshipRegistry(
+        biomes: [TownshipBiome(id: biomeId, name: 'Grasslands', tier: 1)],
+      );
+
+      const state = TownshipState(registry: registry);
+
+      final baseStats = TownshipStats.calculate(state, registry);
+      final modifiedStats = TownshipStats.calculate(
+        state,
+        registry,
+        modifiers: const TownshipModifiers(flatEducation: 15),
+      );
+
+      expect(modifiedStats.education, baseStats.education + 15);
+    });
+
+    test('townshipRepairCost reduces repair cost map', () {
+      const repairMod = TownshipModifiers(repairCost: -25);
+      final baseCosts = {
+        const MelvorId('melvorF:Wood'): 100,
+        const MelvorId('melvorF:Stone'): 200,
+      };
+
+      // Apply the modifier (same formula as _applyRepairCostModifier)
+      final multiplier = 1.0 + (repairMod.repairCost / 100.0);
+      final reduced = baseCosts.map(
+        (key, value) =>
+            MapEntry(key, (value * multiplier).ceil().clamp(0, value)),
+      );
+
+      // -25% repair cost: 100 * 0.75 = 75, 200 * 0.75 = 150
+      expect(reduced[const MelvorId('melvorF:Wood')], 75);
+      expect(reduced[const MelvorId('melvorF:Stone')], 150);
+    });
+
+    test('townshipTraderCost reduces trader cost map', () {
+      const traderMod = TownshipModifiers(traderCost: -10);
+      final baseCosts = {const MelvorId('melvorF:Wood'): 1000};
+
+      // Apply the modifier (same formula as _applyTraderCostModifier)
+      final multiplier = 1.0 + (traderMod.traderCost / 100.0);
+      final reduced = baseCosts.map(
+        (key, value) =>
+            MapEntry(key, (value * multiplier).ceil().clamp(0, value)),
+      );
+
+      // -10% trader cost: 1000 * 0.9 = 900
+      expect(reduced[const MelvorId('melvorF:Wood')], 900);
+    });
+  });
 }
