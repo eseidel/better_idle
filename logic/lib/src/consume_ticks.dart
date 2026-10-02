@@ -594,6 +594,25 @@ void _applyTownshipTicks(
     );
   }
 
+  // Assign casual tasks once the town is founded (a deity is chosen).
+  if (township.worshipId != null) {
+    remainingTicks = ticks;
+    final candidates = builder.state.eligibleCasualTasks.toList();
+    while (remainingTicks > 0 &&
+        township.casualTaskTicksRemaining <= remainingTicks) {
+      remainingTicks -= township.casualTaskTicksRemaining;
+      township = township
+          .assignCasualTask(candidates, random)
+          .copyWith(casualTaskTicksRemaining: ticksPerCasualTask);
+    }
+    if (remainingTicks > 0) {
+      township = township.copyWith(
+        casualTaskTicksRemaining:
+            township.casualTaskTicksRemaining - remainingTicks,
+      );
+    }
+  }
+
   builder.setTownship(township);
 }
 

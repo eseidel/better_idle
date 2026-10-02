@@ -1241,6 +1241,7 @@ TownshipRegistry parseTownship(List<SkillDataEntry>? entries) {
   final trades = <TownshipTrade>[];
   final seasons = <TownshipSeason>[];
   final tasks = <TownshipTask>[];
+  final casualTasks = <TownshipTask>[];
   final buildingDisplayOrderEntries = <DisplayOrderEntry>[];
 
   for (final entry in entries) {
@@ -1363,6 +1364,19 @@ TownshipRegistry parseTownship(List<SkillDataEntry>? entries) {
         ),
       );
     }
+
+    // Parse casual tasks
+    final casualTasksJson = entry.data['casualTasks'] as List<dynamic>?;
+    if (casualTasksJson != null) {
+      casualTasks.addAll(
+        casualTasksJson.map(
+          (json) => TownshipTask.casualFromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
   }
 
   // Compute building display order
@@ -1385,6 +1399,7 @@ TownshipRegistry parseTownship(List<SkillDataEntry>? entries) {
     trades: trades,
     seasons: seasons,
     tasks: tasks,
+    casualTasks: casualTasks,
     buildingSortIndex: buildingSortIndex,
     upgradesTo: upgradesTo,
   );

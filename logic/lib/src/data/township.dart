@@ -2,6 +2,7 @@ import 'package:logic/src/data/actions.dart';
 import 'package:logic/src/data/currency.dart';
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/registries.dart' show compareByIndex;
+import 'package:logic/src/data/shop.dart' show ShopRequirement;
 import 'package:logic/src/types/inventory.dart';
 import 'package:logic/src/types/time_away.dart';
 import 'package:meta/meta.dart';
@@ -608,6 +609,9 @@ enum TaskGoalType {
 
   /// Kill specific monsters.
   monsters,
+
+  /// Kill specific monsters while specific items are equipped.
+  monsterWithItems,
 }
 
 /// A single goal within a Township task.
@@ -617,6 +621,7 @@ class TaskGoal {
     required this.type,
     required this.id,
     required this.quantity,
+    this.itemIds = const [],
   });
 
   factory TaskGoal.fromJson(
@@ -624,14 +629,52 @@ class TaskGoal {
     required TaskGoalType type,
     required String namespace,
   }) {
+    MelvorId parseId(String key) => MelvorId.fromJsonWithNamespace(
+      json[key] as String,
+      defaultNamespace: namespace,
+    );
+    if (type == TaskGoalType.monsterWithItems) {
+      return TaskGoal(
+        type: type,
+        id: parseId('monsterID'),
+        quantity: json['quantity'] as int,
+        itemIds: (json['itemIDs'] as List<dynamic>)
+            .map(
+              (id) => MelvorId.fromJsonWithNamespace(
+                id as String,
+                defaultNamespace: namespace,
+              ),
+            )
+            .toList(),
+      );
+    }
     return TaskGoal(
       type: type,
-      id: MelvorId.fromJsonWithNamespace(
-        json['id'] as String,
-        defaultNamespace: namespace,
-      ),
+      id: parseId('id'),
       quantity: json['quantity'] as int,
     );
+  }
+
+  /// Parses the `goals` object of a task definition.
+  static List<TaskGoal> listFromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    const typesByKey = {
+      'skillXP': TaskGoalType.skillXP,
+      'items': TaskGoalType.items,
+      'monsters': TaskGoalType.monsters,
+      'monsterWithItems': TaskGoalType.monsterWithItems,
+    };
+    return [
+      for (final MapEntry(:key, value: type) in typesByKey.entries)
+        for (final goal in json[key] as List<dynamic>? ?? const [])
+          TaskGoal.fromJson(
+            goal as Map<String, dynamic>,
+            type: type,
+            namespace: namespace,
+          ),
+    ];
   }
 
   /// Type of goal.
@@ -643,6 +686,10 @@ class TaskGoal {
   /// Required quantity (XP amount, item count, or kill count).
   final int quantity;
 
+  /// Items that must be equipped when the kill happens, for
+  /// [TaskGoalType.monsterWithItems] goals. Empty for other goal types.
+  final List<MelvorId> itemIds;
+
   /// Returns the display name for this goal.
   ///
   /// For skill XP goals, returns the skill name + " XP".
@@ -652,7 +699,8 @@ class TaskGoal {
       switch (type) {
         TaskGoalType.skillXP => '${id.localId} XP',
         TaskGoalType.items => items.byId(id).name,
-        TaskGoalType.monsters => combat.monsterById(id).name,
+        TaskGoalType.monsters ||
+        TaskGoalType.monsterWithItems => combat.monsterById(id).name,
       };
 
   /// Returns the asset path for this goal's icon.
@@ -663,7 +711,8 @@ class TaskGoal {
   String asset(ItemRegistry items, CombatRegistry combat) => switch (type) {
     TaskGoalType.skillXP => Skill.fromId(id).assetPath,
     TaskGoalType.items => items.byId(id).media!,
-    TaskGoalType.monsters => combat.monsterById(id).media!,
+    TaskGoalType.monsters ||
+    TaskGoalType.monsterWithItems => combat.monsterById(id).media!,
   };
 }
 
@@ -704,6 +753,53 @@ class TaskReward {
       ),
       quantity: json['quantity'] as int,
     );
+  }
+
+  /// Parses the `rewards` object of a task definition.
+  static List<TaskReward> listFromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    const typesByKey = {
+      'items': TaskRewardType.item,
+      'currencies': TaskRewardType.currency,
+      'skillXP': TaskRewardType.skillXP,
+      'townshipResources': TaskRewardType.townshipResource,
+    };
+    return [
+      for (final MapEntry(:key, value: type) in typesByKey.entries)
+        for (final reward in json[key] as List<dynamic>? ?? const [])
+          TaskReward.fromJson(
+            reward as Map<String, dynamic>,
+            type: type,
+            namespace: namespace,
+          ),
+    ];
+  }
+
+  /// Converts [rewards] to Changes for display in toasts/dialogs.
+  ///
+  /// Note: Township resource rewards are not included since they don't
+  /// appear in the standard toast display.
+  static Changes toChanges(List<TaskReward> rewards, ItemRegistry items) {
+    var changes = const Changes.empty();
+    for (final reward in rewards) {
+      switch (reward.type) {
+        case TaskRewardType.item:
+          final item = items.byId(reward.id);
+          changes = changes.adding(ItemStack(item, count: reward.quantity));
+        case TaskRewardType.currency:
+          final currency = Currency.fromIdString(reward.id.fullId);
+          changes = changes.addingCurrency(currency, reward.quantity);
+        case TaskRewardType.skillXP:
+          final skill = Skill.fromId(reward.id);
+          changes = changes.addingSkillXp(skill, reward.quantity);
+        case TaskRewardType.townshipResource:
+          // Township resources don't show in the standard toast
+          break;
+      }
+    }
+    return changes;
   }
 
   /// Type of reward.
@@ -752,7 +848,11 @@ enum TaskCategory {
   normal,
   hard,
   veryHard,
-  elite;
+  elite,
+
+  /// Repeatable tasks assigned at random over time. The only tasks that
+  /// reward Township resources.
+  casual;
 
   /// Parses a category from the API string format.
   static TaskCategory fromString(String value) {
@@ -774,6 +874,7 @@ enum TaskCategory {
       TaskCategory.hard => 'Hard',
       TaskCategory.veryHard => 'Very Hard',
       TaskCategory.elite => 'Elite',
+      TaskCategory.casual => 'Casual',
     };
   }
 }
@@ -787,105 +888,13 @@ class TownshipTask {
     this.description = '',
     this.goals = const [],
     this.rewards = const [],
+    this.requirements = const [],
   });
 
   factory TownshipTask.fromJson(
     Map<String, dynamic> json, {
     required String namespace,
   }) {
-    // Parse goals
-    final goals = <TaskGoal>[];
-    final goalsJson = json['goals'] as Map<String, dynamic>? ?? {};
-
-    // Parse skillXP goals
-    final skillXPJson = goalsJson['skillXP'] as List<dynamic>? ?? [];
-    for (final goal in skillXPJson) {
-      goals.add(
-        TaskGoal.fromJson(
-          goal as Map<String, dynamic>,
-          type: TaskGoalType.skillXP,
-          namespace: namespace,
-        ),
-      );
-    }
-
-    // Parse items goals
-    final itemsJson = goalsJson['items'] as List<dynamic>? ?? [];
-    for (final goal in itemsJson) {
-      goals.add(
-        TaskGoal.fromJson(
-          goal as Map<String, dynamic>,
-          type: TaskGoalType.items,
-          namespace: namespace,
-        ),
-      );
-    }
-
-    // Parse monsters goals
-    final monstersJson = goalsJson['monsters'] as List<dynamic>? ?? [];
-    for (final goal in monstersJson) {
-      goals.add(
-        TaskGoal.fromJson(
-          goal as Map<String, dynamic>,
-          type: TaskGoalType.monsters,
-          namespace: namespace,
-        ),
-      );
-    }
-
-    // Parse rewards
-    final rewards = <TaskReward>[];
-    final rewardsJson = json['rewards'] as Map<String, dynamic>? ?? {};
-
-    // Parse item rewards
-    final itemRewardsJson = rewardsJson['items'] as List<dynamic>? ?? [];
-    for (final reward in itemRewardsJson) {
-      rewards.add(
-        TaskReward.fromJson(
-          reward as Map<String, dynamic>,
-          type: TaskRewardType.item,
-          namespace: namespace,
-        ),
-      );
-    }
-
-    // Parse currency rewards
-    final currencyJson = rewardsJson['currencies'] as List<dynamic>? ?? [];
-    for (final reward in currencyJson) {
-      rewards.add(
-        TaskReward.fromJson(
-          reward as Map<String, dynamic>,
-          type: TaskRewardType.currency,
-          namespace: namespace,
-        ),
-      );
-    }
-
-    // Parse skill XP rewards
-    final skillXPRewardsJson = rewardsJson['skillXP'] as List<dynamic>? ?? [];
-    for (final reward in skillXPRewardsJson) {
-      rewards.add(
-        TaskReward.fromJson(
-          reward as Map<String, dynamic>,
-          type: TaskRewardType.skillXP,
-          namespace: namespace,
-        ),
-      );
-    }
-
-    // Parse township resource rewards
-    final resourceJson =
-        rewardsJson['townshipResources'] as List<dynamic>? ?? [];
-    for (final reward in resourceJson) {
-      rewards.add(
-        TaskReward.fromJson(
-          reward as Map<String, dynamic>,
-          type: TaskRewardType.townshipResource,
-          namespace: namespace,
-        ),
-      );
-    }
-
     return TownshipTask(
       id: MelvorId.fromJsonWithNamespace(
         json['id'] as String,
@@ -893,8 +902,52 @@ class TownshipTask {
       ),
       category: TaskCategory.fromString(json['category'] as String),
       description: json['description'] as String? ?? '',
-      goals: goals,
-      rewards: rewards,
+      goals: TaskGoal.listFromJson(
+        json['goals'] as Map<String, dynamic>? ?? const {},
+        namespace: namespace,
+      ),
+      rewards: TaskReward.listFromJson(
+        json['rewards'] as Map<String, dynamic>? ?? const {},
+        namespace: namespace,
+      ),
+    );
+  }
+
+  /// Parses an entry of the `casualTasks` list, which has no category but
+  /// does have requirements gating when it can be assigned.
+  factory TownshipTask.casualFromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    final requirementsJson = json['requirements'] as List<dynamic>? ?? [];
+    final requirements = <ShopRequirement>[];
+    for (final requirementJson in requirementsJson) {
+      final requirement = ShopRequirement.fromJson(
+        requirementJson as Map<String, dynamic>,
+        namespace: namespace,
+      );
+      if (requirement == null) {
+        throw ArgumentError(
+          'Unsupported casual task requirement: $requirementJson',
+        );
+      }
+      requirements.add(requirement);
+    }
+    return TownshipTask(
+      id: MelvorId.fromJsonWithNamespace(
+        json['id'] as String,
+        defaultNamespace: namespace,
+      ),
+      category: TaskCategory.casual,
+      goals: TaskGoal.listFromJson(
+        json['goals'] as Map<String, dynamic>? ?? const {},
+        namespace: namespace,
+      ),
+      rewards: TaskReward.listFromJson(
+        json['rewards'] as Map<String, dynamic>? ?? const {},
+        namespace: namespace,
+      ),
+      requirements: requirements,
     );
   }
 
@@ -910,32 +963,18 @@ class TownshipTask {
   final List<TaskGoal> goals;
 
   /// Rewards for completing this task.
+  ///
+  /// For casual tasks the GP, Slayer Coin and Township XP amounts here are
+  /// placeholders; the real amounts scale with the player's levels. See
+  /// `GlobalState.taskRewards`.
   final List<TaskReward> rewards;
 
-  /// Converts task rewards to Changes for display in toasts/dialogs.
-  ///
-  /// Note: Township resource rewards are not included since they don't
-  /// appear in the standard toast display.
-  Changes rewardsToChanges(ItemRegistry items) {
-    var changes = const Changes.empty();
-    for (final reward in rewards) {
-      switch (reward.type) {
-        case TaskRewardType.item:
-          final item = items.byId(reward.id);
-          changes = changes.adding(ItemStack(item, count: reward.quantity));
-        case TaskRewardType.currency:
-          final currency = Currency.fromIdString(reward.id.fullId);
-          changes = changes.addingCurrency(currency, reward.quantity);
-        case TaskRewardType.skillXP:
-          final skill = Skill.fromId(reward.id);
-          changes = changes.addingSkillXp(skill, reward.quantity);
-        case TaskRewardType.townshipResource:
-          // Township resources don't show in the standard toast
-          break;
-      }
-    }
-    return changes;
-  }
+  /// Requirements that must be met before a casual task can be assigned.
+  /// Empty for main tasks.
+  final List<ShopRequirement> requirements;
+
+  /// Whether this is a casual (repeatable, randomly assigned) task.
+  bool get isCasual => category == TaskCategory.casual;
 }
 
 /// Registry containing all Township data.
@@ -949,6 +988,7 @@ class TownshipRegistry {
     this.trades = const [],
     this.seasons = const [],
     this.tasks = const [],
+    this.casualTasks = const [],
     this.buildingSortIndex = const {},
     this.upgradesTo = const {},
   });
@@ -962,7 +1002,12 @@ class TownshipRegistry {
   final List<TownshipDeity> deities;
   final List<TownshipTrade> trades;
   final List<TownshipSeason> seasons;
+
+  /// Main tasks, each completable once.
   final List<TownshipTask> tasks;
+
+  /// Casual tasks, assigned at random over time and repeatable.
+  final List<TownshipTask> casualTasks;
 
   /// Maps building ID to its display order index.
   final Map<MelvorId, int> buildingSortIndex;
@@ -1105,9 +1150,9 @@ class TownshipRegistry {
   // Task lookups
   // ---------------------------------------------------------------------------
 
-  /// Returns a task by ID, or throws if not found.
+  /// Returns a main or casual task by ID, or throws if not found.
   TownshipTask taskById(MelvorId id) {
-    for (final task in tasks) {
+    for (final task in tasks.followedBy(casualTasks)) {
       if (task.id == id) return task;
     }
     throw StateError('Unknown township task: $id');
