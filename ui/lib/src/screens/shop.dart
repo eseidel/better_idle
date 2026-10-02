@@ -261,52 +261,17 @@ class _ShopPageState extends State<ShopPage> {
     ShopPurchase purchase,
     ShopViewModel viewModel,
   ) {
-    // Prefer custom description if available
-    // (e.g., Magic Pot has detailed modifier info)
+    final text = purchase.shopDescription(
+      viewModel._state.registries.items,
+      viewModel._state.registries.modifierMetadata,
+    );
+    if (text == null) return null;
+
+    // Custom descriptions may contain HTML markup (e.g., <br>, <span>).
     if (purchase.description != null) {
-      return _parseDescription(purchase.description!, purchase: purchase);
+      return _parseDescription(text);
     }
-
-    // Handle itemCharges purchases
-    final itemCharges = purchase.contains.itemCharges;
-    if (itemCharges != null) {
-      final item = viewModel.itemById(itemCharges.itemId);
-      final chargeCount = itemCharges.quantity;
-      final itemDescription = item.description ?? item.name;
-
-      return TextSpan(text: '+$chargeCount charges: $itemDescription');
-    }
-
-    // Otherwise build description from modifiers we understand
-    final parts = <String>[];
-
-    // Add skill interval modifiers
-    final modifiers = purchase.contains.modifiers;
-    for (final skillId in modifiers.skillIntervalSkillIds) {
-      final skill = Skill.fromId(skillId);
-      final value = modifiers.skillIntervalForSkill(skillId);
-      final percent = value < 0 ? '$value%' : '+$value%';
-      parts.add('$percent ${skill.name} time');
-    }
-
-    // Add bank space
-    final bankSpace = purchase.contains.bankSpace;
-    if (bankSpace != null) {
-      parts.add('+$bankSpace bank space');
-    }
-
-    // If no auto-generated description, check if purchase contains a single
-    // item with a custom description (e.g., Feathers)
-    if (parts.isEmpty && purchase.contains.items.length == 1) {
-      final itemId = purchase.contains.items.first.itemId;
-      final item = viewModel.itemById(itemId);
-      if (item.description != null) {
-        return _parseDescription(item.description!);
-      }
-    }
-
-    if (parts.isEmpty) return null;
-    return TextSpan(text: parts.join(', '));
+    return TextSpan(text: text);
   }
 
   void _showBulkPurchaseDialog(
