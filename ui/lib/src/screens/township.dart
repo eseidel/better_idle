@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:logic/logic.dart';
 import 'package:ui/src/logic/redux_actions.dart';
+import 'package:ui/src/services/ui_preferences.dart';
 import 'package:ui/src/widgets/cached_image.dart';
+import 'package:ui/src/widgets/currency_display.dart';
 import 'package:ui/src/widgets/game_scaffold.dart';
 import 'package:ui/src/widgets/skill_progress.dart';
 import 'package:ui/src/widgets/style.dart';
@@ -150,8 +152,19 @@ enum _BuildingFilter {
   };
 }
 
-/// Sort modes for tasks.
-enum _TaskSortMode { difficulty, completion }
+/// Sort modes for main tasks.
+enum TaskSortMode {
+  difficulty,
+  completion;
+
+  String get label => switch (this) {
+    difficulty => 'Difficulty',
+    completion => 'Completion',
+  };
+
+  /// [UiPreferences] key the chosen mode is remembered under.
+  static const preferenceKey = 'townshipTaskSort';
+}
 
 /// The tasks view showing township tasks.
 class _TasksView extends StatefulWidget {
@@ -164,7 +177,14 @@ class _TasksView extends StatefulWidget {
 }
 
 class _TasksViewState extends State<_TasksView> {
-  _TaskSortMode _sortMode = _TaskSortMode.difficulty;
+  TaskSortMode _sortMode =
+      uiPreferences.getEnum(TaskSortMode.preferenceKey, TaskSortMode.values) ??
+      TaskSortMode.difficulty;
+
+  void _setSortMode(TaskSortMode mode) {
+    uiPreferences.setEnum(TaskSortMode.preferenceKey, mode);
+    setState(() => _sortMode = mode);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +201,7 @@ class _TasksViewState extends State<_TasksView> {
         .toList();
 
     // Sort based on mode.
-    if (_sortMode == _TaskSortMode.completion) {
+    if (_sortMode == TaskSortMode.completion) {
       incompleteTasks.sort((a, b) {
         final aProgress = _taskCompletionProgress(viewModel, a);
         final bProgress = _taskCompletionProgress(viewModel, b);
@@ -196,9 +216,13 @@ class _TasksViewState extends State<_TasksView> {
     return ListView(
       children: [
         SkillProgress(xp: viewModel.townshipXp),
+        _CasualTasksHeader(viewModel: viewModel),
+        for (final task in viewModel.activeCasualTasks)
+          _TaskCard(viewModel: viewModel, task: task),
+        const Divider(),
         _TaskSortHeader(
           sortMode: _sortMode,
-          onSortChanged: (mode) => setState(() => _sortMode = mode),
+          onSortChanged: _setSortMode,
           completedCount: completedCount,
           totalCount: totalCount,
         ),
@@ -224,6 +248,42 @@ class _TasksViewState extends State<_TasksView> {
   }
 }
 
+/// Header for the casual tasks section: how many are assigned and when the
+/// next one arrives.
+class _CasualTasksHeader extends StatelessWidget {
+  const _CasualTasksHeader({required this.viewModel});
+
+  final TownshipViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final activeCount = viewModel.township.activeCasualTasks.length;
+    final status = activeCount >= maxActiveCasualTasks
+        ? 'Complete or skip a task to receive more'
+        : 'Next task in ${viewModel.nextCasualTaskTime}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Casual Tasks ($activeCount / $maxActiveCasualTasks)',
+            style: textTheme.titleSmall,
+          ),
+          Text(status, style: textTheme.bodySmall),
+          if (activeCount == 0)
+            Text(
+              'Casual tasks reward Township resources. New ones are '
+              'assigned every 5 hours.',
+              style: textTheme.bodySmall,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Header with sort toggle for tasks.
 class _TaskSortHeader extends StatelessWidget {
   const _TaskSortHeader({
@@ -233,18 +293,13 @@ class _TaskSortHeader extends StatelessWidget {
     required this.totalCount,
   });
 
-  final _TaskSortMode sortMode;
-  final void Function(_TaskSortMode) onSortChanged;
+  final TaskSortMode sortMode;
+  final void Function(TaskSortMode) onSortChanged;
   final int completedCount;
   final int totalCount;
 
   @override
   Widget build(BuildContext context) {
-    final sortLabel = switch (sortMode) {
-      _TaskSortMode.difficulty => 'Difficulty',
-      _TaskSortMode.completion => 'Completion',
-    };
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -254,25 +309,22 @@ class _TaskSortHeader extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const Spacer(),
-          PopupMenuButton<_TaskSortMode>(
+          PopupMenuButton<TaskSortMode>(
             initialValue: sortMode,
             onSelected: onSortChanged,
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: _TaskSortMode.difficulty,
-                child: Text('Difficulty'),
-              ),
-              PopupMenuItem(
-                value: _TaskSortMode.completion,
-                child: Text('Completion'),
-              ),
+            itemBuilder: (context) => [
+              for (final mode in TaskSortMode.values)
+                PopupMenuItem(value: mode, child: Text(mode.label)),
             ],
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.sort, size: 18),
                 const SizedBox(width: 4),
-                Text(sortLabel, style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  sortMode.label,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 const Icon(Icons.arrow_drop_down, size: 18),
               ],
             ),
@@ -337,6 +389,7 @@ class _TaskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final canClaim = viewModel.isTaskClaimable(task.id);
     final categoryName = '${task.category.displayName} Task';
+    final rewards = viewModel.taskRewards(task);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -358,38 +411,31 @@ class _TaskCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
 
-            // Rewards section with Claim button
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Text('Rewards:', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Rewards:',
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 4),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          // Show currencies first, then other rewards.
-                          for (final reward in task.rewards.where(
-                            (r) => r.type == TaskRewardType.currency,
-                          ))
-                            _RewardChip(reward: reward, viewModel: viewModel),
-                          for (final reward in task.rewards.where(
-                            (r) => r.type != TaskRewardType.currency,
-                          ))
-                            _RewardChip(reward: reward, viewModel: viewModel),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
+                // Show currencies first, then other rewards.
+                for (final reward in rewards.where(
+                  (r) => r.type == TaskRewardType.currency,
+                ))
+                  _RewardChip(reward: reward, viewModel: viewModel),
+                for (final reward in rewards.where(
+                  (r) => r.type != TaskRewardType.currency,
+                ))
+                  _RewardChip(reward: reward, viewModel: viewModel),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (task.isCasual) ...[
+                  _SkipCasualTaskButton(viewModel: viewModel, task: task),
+                  const SizedBox(width: 8),
+                ],
                 StoreConnector<GlobalState, VoidCallback?>(
                   converter: (store) => canClaim
                       ? () => store.dispatch(ClaimTownshipTaskAction(task.id))
@@ -403,6 +449,53 @@ class _TaskCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Skips a casual task for GP, after confirming.
+class _SkipCasualTaskButton extends StatelessWidget {
+  const _SkipCasualTaskButton({required this.viewModel, required this.task});
+
+  final TownshipViewModel viewModel;
+  final TownshipTask task;
+
+  @override
+  Widget build(BuildContext context) {
+    final cost = viewModel.casualTaskSkipCost;
+    return OutlinedButton(
+      onPressed: viewModel.canAffordGp(cost)
+          ? () => _confirmSkip(context, cost)
+          : null,
+      child: const Text('Skip'),
+    );
+  }
+
+  void _confirmSkip(BuildContext context, int cost) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Skip this task?'),
+        content: Row(
+          children: [
+            const Text('Skipping costs '),
+            CurrencyDisplay(currency: Currency.gp, amount: cost),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              context.dispatch(SkipCasualTaskAction(task.id));
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('Skip'),
+          ),
+        ],
       ),
     );
   }
@@ -431,10 +524,14 @@ class _GoalChip extends StatelessWidget {
 
     final progress = _formatProgress(current, goal.quantity);
     final verb = switch (goal.type) {
-      TaskGoalType.monsters => 'Defeat',
+      TaskGoalType.monsters || TaskGoalType.monsterWithItems => 'Defeat',
       TaskGoalType.items => 'Donate',
       TaskGoalType.skillXP => 'Earn',
     };
+    final equippedNames = goal.itemIds
+        .map((id) => registries.items.byId(id).name)
+        .join(', ');
+    final suffix = equippedNames.isEmpty ? '' : ' wearing $equippedNames';
 
     final textStyle = TextStyle(
       fontSize: 12,
@@ -456,7 +553,7 @@ class _GoalChip extends StatelessWidget {
               alignment: PlaceholderAlignment.middle,
               child: CachedImage(assetPath: goalAsset, size: 20),
             ),
-            TextSpan(text: ' $goalName', style: textStyle),
+            TextSpan(text: ' $goalName$suffix', style: textStyle),
           ],
         ),
       ),
@@ -594,6 +691,19 @@ class TownshipViewModel {
 
   /// Returns whether a task can be claimed (all goals met, not completed).
   bool isTaskClaimable(MelvorId taskId) => _state.isTaskComplete(taskId);
+
+  /// The rewards claiming [task] would grant right now.
+  List<TaskReward> taskRewards(TownshipTask task) => _state.taskRewards(task);
+
+  /// The casual tasks currently assigned, oldest first.
+  List<TownshipTask> get activeCasualTasks => [
+    for (final id in township.activeCasualTasks) township.registry.taskById(id),
+  ];
+
+  String get nextCasualTaskTime =>
+      compactDurationFromTicks(township.casualTaskTicksRemaining);
+
+  int get casualTaskSkipCost => _state.casualTaskSkipCost;
 
   /// Gets the current progress toward a specific goal within a task.
   int getGoalProgress(MelvorId taskId, TaskGoal goal) {

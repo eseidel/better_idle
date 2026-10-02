@@ -13,6 +13,7 @@ import 'package:ui/src/services/game_persist.dart';
 import 'package:ui/src/services/logger.dart';
 import 'package:ui/src/services/save_slot_service.dart';
 import 'package:ui/src/services/toast_service.dart';
+import 'package:ui/src/services/ui_preferences.dart';
 import 'package:ui/src/widgets/router.dart';
 import 'package:ui/src/widgets/toast_overlay.dart';
 import 'package:ui/src/widgets/welcome_back_dialog.dart';
@@ -28,7 +29,7 @@ void main() {
       return true;
     };
     runApp(const MyApp());
-  }, values: {loggerRef, toastServiceRef});
+  }, values: {loggerRef, toastServiceRef, uiPreferencesRef});
 }
 
 class MyPersistor extends Persistor<GlobalState> {
@@ -457,6 +458,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> _loadData() async {
     _cacheServices = await createCacheServices();
     _registries = await loadRegistriesFromCache(_cacheServices.cache);
+    await uiPreferences.load();
 
     setState(() {
       _isDataLoaded = true;

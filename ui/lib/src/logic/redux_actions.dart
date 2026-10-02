@@ -934,6 +934,15 @@ class ClaimTownshipTaskAction extends ReduxAction<GlobalState> {
   }
 }
 
+/// Discards an assigned casual Township task for its GP skip cost.
+class SkipCasualTaskAction extends ReduxAction<GlobalState> {
+  SkipCasualTaskAction(this.taskId);
+  final MelvorId taskId;
+
+  @override
+  GlobalState reduce() => state.skipCasualTask(taskId);
+}
+
 class HealTownshipAction extends ReduxAction<GlobalState> {
   HealTownshipAction({required this.resource, required this.amount});
 

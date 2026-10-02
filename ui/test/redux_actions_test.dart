@@ -1617,6 +1617,34 @@ void main() {
     });
   });
 
+  group('SkipCasualTaskAction', () {
+    test('removes the task and charges the skip cost', () {
+      const taskId = MelvorId('melvorF:CasualTask0');
+      final registries = Registries.test(
+        township: const TownshipRegistry(
+          casualTasks: [
+            TownshipTask(id: taskId, category: TaskCategory.casual),
+          ],
+        ),
+      );
+      final initialState = GlobalState.test(
+        registries,
+        currencies: const {Currency.gp: 100},
+        township: TownshipState(
+          registry: registries.township,
+          activeCasualTasks: const [taskId],
+        ),
+      );
+
+      final store = Store<GlobalState>(initialState: initialState)
+        ..dispatch(SkipCasualTaskAction(taskId));
+
+      expect(store.state.township.activeCasualTasks, isEmpty);
+      // Township level 1 needs 83 XP to level up.
+      expect(store.state.gp, 17);
+    });
+  });
+
   group('ClaimTownshipTaskAction', () {
     test('claims task and grants GP reward', () {
       runScoped(() {
