@@ -92,14 +92,14 @@ void main() {
       );
       allotmentCrop = testRegistries.farming
           .cropsForCategory(allotmentCategory.id)
-          .firstWhere((c) => c.level == 1);
+          .firstWhere((c) => c.unlockLevel == 1);
 
       // Get a tree crop (trees start at level 15, so get the lowest level one)
       treeCategory = testRegistries.farmingCategories.firstWhere(
         (c) => c.name == 'Trees',
       );
       final treeCrops = testRegistries.farming.cropsForCategory(treeCategory.id)
-        ..sort((a, b) => a.level.compareTo(b.level));
+        ..sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
       treeCrop = treeCrops.first;
 
       // Get an unlocked plot
@@ -129,7 +129,7 @@ void main() {
       state = state.plantCrop(plotId, allotmentCrop);
       final xpAfter = state.skillState(Skill.farming).xp;
 
-      expect(xpAfter - xpBefore, allotmentCrop.baseXP);
+      expect(xpAfter - xpBefore, allotmentCrop.xp);
     });
 
     test('planting tree seed grants NO XP', () {
@@ -142,7 +142,7 @@ void main() {
         ]),
         skillStates: {
           Skill.farming: SkillState(
-            xp: startXpForLevel(treeCrop.level),
+            xp: startXpForLevel(treeCrop.unlockLevel),
             masteryPoolXp: 0,
           ),
         },
@@ -153,6 +153,32 @@ void main() {
       final xpAfter = state.skillState(Skill.farming).xp;
 
       expect(xpAfter - xpBefore, 0);
+    });
+
+    test('planting a crop above the player farming level throws', () {
+      // treeCrop unlocks above level 1, and GlobalState.empty starts at 1.
+      expect(treeCrop.unlockLevel, greaterThan(1));
+
+      final seed = testRegistries.items.byId(treeCrop.seedId);
+      final state = GlobalState.empty(testRegistries).copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: treeCrop.seedCost),
+        ]),
+      );
+
+      expect(
+        () => state.plantCrop(plotId, treeCrop),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              contains(treeCrop.name),
+              contains('requires ${treeCrop.unlockLevel}'),
+            ),
+          ),
+        ),
+      );
     });
 
     test('harvesting tree grants fixed XP (not scaled by quantity)', () {
@@ -166,7 +192,7 @@ void main() {
         ]),
         skillStates: {
           Skill.farming: SkillState(
-            xp: startXpForLevel(treeCrop.level),
+            xp: startXpForLevel(treeCrop.unlockLevel),
             masteryPoolXp: 0,
           ),
         },
@@ -185,7 +211,7 @@ void main() {
       final xpAfter = state.skillState(Skill.farming).xp;
 
       // Tree harvest should give exactly baseXP (not scaled)
-      expect(xpAfter - xpBefore, treeCrop.baseXP);
+      expect(xpAfter - xpBefore, treeCrop.xp);
     });
 
     test('harvesting allotment grants XP scaled by quantity', () {
@@ -217,7 +243,7 @@ void main() {
       final harvestedQuantity = state.inventory.countOfItem(product);
 
       // Allotment harvest should give baseXP * quantity
-      final expectedHarvestXp = allotmentCrop.baseXP * harvestedQuantity;
+      final expectedHarvestXp = allotmentCrop.xp * harvestedQuantity;
       expect(xpAfterHarvest - xpBeforeHarvest, expectedHarvestXp);
     });
   });
@@ -232,7 +258,7 @@ void main() {
       );
       allotmentCrop = testRegistries.farming
           .cropsForCategory(allotmentCategory.id)
-          .firstWhere((c) => c.level == 1);
+          .firstWhere((c) => c.unlockLevel == 1);
       plotId = testRegistries.farming.initialPlots().first;
     });
 
@@ -359,7 +385,7 @@ void main() {
       );
       allotmentCrop = testRegistries.farming
           .cropsForCategory(allotmentCategory.id)
-          .firstWhere((c) => c.level == 1);
+          .firstWhere((c) => c.unlockLevel == 1);
       plotId = testRegistries.farming.initialPlots().first;
     });
 
@@ -461,7 +487,7 @@ void main() {
       );
       allotmentCrop = testRegistries.farming
           .cropsForCategory(allotmentCategory.id)
-          .firstWhere((c) => c.level == 1);
+          .firstWhere((c) => c.unlockLevel == 1);
       plotId = testRegistries.farming.initialPlots().first;
     });
 
@@ -543,7 +569,7 @@ void main() {
       );
       allotmentCrop = testRegistries.farming
           .cropsForCategory(allotmentCategory.id)
-          .firstWhere((c) => c.level == 1);
+          .firstWhere((c) => c.unlockLevel == 1);
       // Use all allotment plots (we'll manually unlock them in tests)
       allotmentPlots = testRegistries.farming.plotsForCategory(
         allotmentCategory.id,
@@ -647,7 +673,7 @@ void main() {
       final treePlotId = treePlots.first.id;
 
       final treeCrops = testRegistries.farming.cropsForCategory(treeCategory.id)
-        ..sort((a, b) => a.level.compareTo(b.level));
+        ..sort((a, b) => a.unlockLevel.compareTo(b.unlockLevel));
       final treeCrop = treeCrops.first;
 
       var state = stateWithUnlockedPlots();
@@ -690,7 +716,7 @@ void main() {
       );
       allotmentCrop = testRegistries.farming
           .cropsForCategory(allotmentCategory.id)
-          .firstWhere((c) => c.level == 1);
+          .firstWhere((c) => c.unlockLevel == 1);
       allotmentPlots = testRegistries.farming.plotsForCategory(
         allotmentCategory.id,
       );
@@ -878,6 +904,114 @@ void main() {
       }
       expect(withCompost, 1);
       expect(withoutCompost, greaterThan(0));
+    });
+  });
+
+  group('Farming mastery', () {
+    late FarmingCrop allotmentCrop;
+    late FarmingCrop treeCrop;
+    late MelvorId allotmentPlotId;
+
+    setUpAll(() {
+      final allotmentCategory = testRegistries.farmingCategories.firstWhere(
+        (c) => c.name == 'Allotments',
+      );
+      final treeCategory = testRegistries.farmingCategories.firstWhere(
+        (c) => c.name == 'Trees',
+      );
+      allotmentCrop = testRegistries.farming
+          .cropsForCategory(allotmentCategory.id)
+          .firstWhere((c) => c.unlockLevel == 1);
+      treeCrop = testRegistries.farming
+          .cropsForCategory(treeCategory.id)
+          .reduce((a, b) => a.unlockLevel <= b.unlockLevel ? a : b);
+      allotmentPlotId = testRegistries.farming.initialPlots().first;
+    });
+
+    test('crops track mastery but are never the active action', () {
+      expect(allotmentCrop.canBeActiveAction, isFalse);
+      expect(
+        testRegistries.masteryActionsForSkill(Skill.farming),
+        isNotEmpty,
+        reason: 'crops must count toward farming mastery',
+      );
+      expect(
+        testRegistries.actionsForSkill(Skill.farming),
+        isEmpty,
+        reason: 'crops must not be offered as an activity to switch to',
+      );
+    });
+
+    test('farming has a non-zero mastery pool capacity', () {
+      // Before crops were registered as mastery actions this was 0, which
+      // made the mastery pool bar and its checkpoint bonuses unreachable.
+      expect(maxMasteryPoolXpForSkill(testRegistries, Skill.farming), 12000000);
+    });
+
+    test('mastery XP does not depend on the crop category', () {
+      // masteryXPDivider normalizes growth interval, so an allotment and a
+      // tree at the same mastery level earn the same mastery XP per harvest,
+      // even though the tree grants vastly more skill XP.
+      final state = GlobalState.empty(testRegistries);
+      expect(
+        state.masteryXpPerAction(allotmentCrop),
+        state.masteryXpPerAction(treeCrop),
+      );
+      expect(treeCrop.xp, greaterThan(allotmentCrop.xp));
+    });
+
+    test('successful harvest awards action mastery XP and pool XP', () {
+      final seed = testItems.byId(allotmentCrop.seedId);
+      var state = GlobalState.empty(testRegistries).copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: allotmentCrop.seedCost),
+        ]),
+      );
+      state = state.plantCrop(allotmentPlotId, allotmentCrop);
+      state = state.copyWith(
+        plotStates: {
+          allotmentPlotId: PlotState(
+            cropId: allotmentCrop.id,
+            growthTicksRemaining: 0,
+          ),
+        },
+      );
+
+      final expectedMasteryXp = state.masteryXpPerAction(allotmentCrop);
+      expect(expectedMasteryXp, greaterThan(0));
+
+      // Seed 2 succeeds the 50% harvest roll; a failed harvest awards nothing.
+      final (after, _) = state.harvestCrop(allotmentPlotId, Random(2));
+
+      expect(after.actionState(allotmentCrop.id).masteryXp, expectedMasteryXp);
+      expect(
+        after.skillState(Skill.farming).masteryPoolXp,
+        masteryPoolXpForMasteryXp(expectedMasteryXp),
+      );
+    });
+
+    test('failed harvest awards no mastery XP', () {
+      final seed = testItems.byId(allotmentCrop.seedId);
+      var state = GlobalState.empty(testRegistries).copyWith(
+        inventory: Inventory.fromItems(testItems, [
+          ItemStack(seed, count: allotmentCrop.seedCost),
+        ]),
+      );
+      state = state.plantCrop(allotmentPlotId, allotmentCrop);
+      state = state.copyWith(
+        plotStates: {
+          allotmentPlotId: PlotState(
+            cropId: allotmentCrop.id,
+            growthTicksRemaining: 0,
+          ),
+        },
+      );
+
+      // Seed 0 fails the 50% harvest roll, so the crop dies.
+      final (after, _) = state.harvestCrop(allotmentPlotId, Random(0));
+
+      expect(after.actionState(allotmentCrop.id).masteryXp, 0);
+      expect(after.skillState(Skill.farming).masteryPoolXp, 0);
     });
   });
 }

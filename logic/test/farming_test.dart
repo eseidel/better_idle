@@ -28,7 +28,7 @@ void main() {
       expect(crop.seedId, seedId);
       expect(crop.productId, productId);
       expect(crop.baseQuantity, 5);
-      expect(crop.level, 1);
+      expect(crop.unlockLevel, 1);
     });
   });
 }

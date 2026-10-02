@@ -85,7 +85,9 @@ class Registries {
   }) {
     // For tests, we store actions in a separate list that overrides
     // the allActions getter. This allows tests to use generic SkillAction
-    // instances without needing skill-specific subclasses.
+    // instances without needing skill-specific subclasses. Farming crops are
+    // folded in from the farming registry so fixtures see the same actions
+    // production does without every farming test restating its crops.
     return Registries._test(
       items: ItemRegistry(items),
       drops: DropsRegistry(
@@ -117,7 +119,7 @@ class Registries {
             areas: SlayerAreaRegistry(const []),
           ),
       bankSortIndex: bankSortIndex ?? {},
-      testActions: actions,
+      testActions: [...actions, ...?farming?.crops],
       combat: combat,
       farming: farming,
       itemUpgrades: itemUpgrades,
@@ -264,8 +266,9 @@ class Registries {
     return action;
   }
 
-  /// Map from Skill to list of SkillActions for that skill (cached).
-  late final Map<Skill, List<SkillAction>> _actionsForSkill = () {
+  /// Map from Skill to every SkillAction for that skill, including the ones
+  /// the player cannot perform directly (cached).
+  late final Map<Skill, List<SkillAction>> _masteryActionsForSkill = () {
     final map = <Skill, List<SkillAction>>{};
     for (final action in allActions) {
       if (action is SkillAction) {
@@ -275,9 +278,29 @@ class Registries {
     return map;
   }();
 
-  /// Returns all skill actions for a given skill.
+  /// Map from Skill to the SkillActions the player can actively perform.
+  late final Map<Skill, List<SkillAction>> _actionsForSkill = {
+    for (final entry in _masteryActionsForSkill.entries)
+      entry.key: entry.value
+          .where((action) => action.canBeActiveAction)
+          .toList(),
+  };
+
+  /// Returns the skill actions a player can select as their active action.
+  ///
+  /// Excludes background-only actions like farming crops. Use
+  /// [masteryActionsForSkill] when you need every action that tracks mastery.
   List<SkillAction> actionsForSkill(Skill skill) {
     return _actionsForSkill[skill] ?? const [];
+  }
+
+  /// Returns every skill action that tracks mastery for a given skill.
+  ///
+  /// This is a superset of [actionsForSkill]: it also includes actions that
+  /// only run in the background, like farming crops, which earn mastery even
+  /// though they are never the active action.
+  List<SkillAction> masteryActionsForSkill(Skill skill) {
+    return _masteryActionsForSkill[skill] ?? const [];
   }
 
   /// Comparator for sorting items according to bank sort order.

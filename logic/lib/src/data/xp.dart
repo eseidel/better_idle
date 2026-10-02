@@ -136,7 +136,7 @@ final int maxMasteryXp = _xpTable[99];
 /// Maximum mastery pool XP for a skill is 500,000 multiplied by the total
 /// number of actions in that skill.
 int maxMasteryPoolXpForSkill(Registries registries, Skill skill) {
-  final actionCount = registries.actionsForSkill(skill).length;
+  final actionCount = registries.masteryActionsForSkill(skill).length;
   return actionCount * 500000;
 }
 
@@ -209,6 +209,12 @@ XpProgress _progressForXp(int xp, {int? maxLevel}) {
   );
 }
 
+/// Returns the mastery pool XP earned alongside [masteryXp] for one action.
+///
+/// Melvor grants 25% of the action's mastery XP to the skill's mastery pool.
+int masteryPoolXpForMasteryXp(int masteryXp) =>
+    max(1, (0.25 * masteryXp).toInt());
+
 /// Calculates the amount of mastery XP gained per action from raw values.
 /// Derived from https://wiki.melvoridle.com/w/Mastery.
 ///
@@ -223,8 +229,11 @@ int calculateMasteryXpPerAction({
   required int itemMasteryLevel,
   required double bonus, // e.g. 0.1 for +10%
 }) {
-  final actionsForSkill = registries.actionsForSkill(action.skill);
-  final totalItemsInSkill = actionsForSkill.length;
+  final masteryActions = registries.masteryActionsForSkill(action.skill);
+  final totalItemsInSkill = masteryActions.length;
+  // A skill with no registered actions has no mastery to spread; bail out
+  // rather than dividing by zero below.
+  if (totalItemsInSkill == 0) return 1;
   final actionTime = action.masteryActionTime;
   // Total Mastery for Skill = number of items × 99 (max mastery level per item)
   final totalMasteryForSkill = totalItemsInSkill * 99;

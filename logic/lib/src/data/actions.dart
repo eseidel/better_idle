@@ -262,6 +262,15 @@ class SkillAction extends Action {
   /// Override in subclasses that have categories.
   MelvorId? get categoryId => null;
 
+  /// Whether the player can select this action as their active action.
+  ///
+  /// False for actions that only ever run in the background, like farming
+  /// crops, which grow on their own and are harvested rather than performed.
+  /// Such actions still track mastery, so they are excluded from
+  /// `Registries.actionsForSkill` but included in
+  /// `Registries.masteryActionsForSkill`.
+  bool get canBeActiveAction => true;
+
   /// Seconds of "action time" the mastery XP formula charges for one
   /// completion of this action. See https://wiki.melvoridle.com/w/Mastery.
   ///

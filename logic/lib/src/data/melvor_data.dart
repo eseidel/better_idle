@@ -588,19 +588,9 @@ FarmingRegistry parseFarming(List<SkillDataEntry>? entries) {
   final categories = <FarmingCategory>[];
   final plots = <FarmingPlot>[];
 
+  // Categories come first: a crop copies its category's masteryXPDivider in
+  // at parse time, and nothing guarantees the two live in the same entry.
   for (final entry in entries) {
-    final recipes = entry.data['recipes'] as List<dynamic>?;
-    if (recipes != null) {
-      crops.addAll(
-        recipes.map(
-          (json) => FarmingCrop.fromJson(
-            json as Map<String, dynamic>,
-            namespace: entry.namespace,
-          ),
-        ),
-      );
-    }
-
     final cats = entry.data['categories'] as List<dynamic>?;
     if (cats != null) {
       categories.addAll(
@@ -620,6 +610,26 @@ FarmingRegistry parseFarming(List<SkillDataEntry>? entries) {
           (json) => FarmingPlot.fromJson(
             json as Map<String, dynamic>,
             namespace: entry.namespace,
+          ),
+        ),
+      );
+    }
+  }
+
+  final dividerByCategoryId = {
+    for (final category in categories) category.id: category.masteryXPDivider,
+  };
+
+  for (final entry in entries) {
+    final recipes = entry.data['recipes'] as List<dynamic>?;
+    if (recipes != null) {
+      crops.addAll(
+        recipes.map(
+          (json) => FarmingCrop.fromJson(
+            json as Map<String, dynamic>,
+            namespace: entry.namespace,
+            masteryXPDividerFor: (categoryId) =>
+                dividerByCategoryId[categoryId] ?? 1,
           ),
         ),
       );
