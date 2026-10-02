@@ -4095,7 +4095,7 @@ void main() {
   });
 
   group('TownshipTask', () {
-    group('rewardsToChanges', () {
+    group('TaskReward.toChanges', () {
       test('converts item rewards to Changes', () {
         const itemId = MelvorId('melvorD:Oak_Logs');
         const item = Item(
@@ -4114,7 +4114,7 @@ void main() {
         );
 
         final items = ItemRegistry(const [item]);
-        final changes = task.rewardsToChanges(items);
+        final changes = TaskReward.toChanges(task.rewards, items);
 
         expect(changes.inventoryChanges.counts.length, 1);
         expect(changes.inventoryChanges.counts[itemId], 100);
@@ -4134,7 +4134,7 @@ void main() {
         );
 
         final items = ItemRegistry(const []);
-        final changes = task.rewardsToChanges(items);
+        final changes = TaskReward.toChanges(task.rewards, items);
 
         expect(changes.currenciesGained.length, 1);
         expect(changes.currenciesGained[Currency.gp], 5000);
@@ -4154,7 +4154,7 @@ void main() {
         );
 
         final items = ItemRegistry(const []);
-        final changes = task.rewardsToChanges(items);
+        final changes = TaskReward.toChanges(task.rewards, items);
 
         expect(changes.skillXpChanges.counts.length, 1);
         expect(changes.skillXpChanges.counts[Skill.mining], 10000);
@@ -4174,7 +4174,7 @@ void main() {
         );
 
         final items = ItemRegistry(const []);
-        final changes = task.rewardsToChanges(items);
+        final changes = TaskReward.toChanges(task.rewards, items);
 
         expect(changes.inventoryChanges.isEmpty, isTrue);
         expect(changes.currenciesGained.isEmpty, isTrue);
@@ -4214,7 +4214,7 @@ void main() {
         );
 
         final items = ItemRegistry(const [item]);
-        final changes = task.rewardsToChanges(items);
+        final changes = TaskReward.toChanges(task.rewards, items);
 
         expect(changes.inventoryChanges.counts.length, 1);
         expect(changes.inventoryChanges.counts[itemId], 50);

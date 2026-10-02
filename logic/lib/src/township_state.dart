@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:logic/src/data/melvor_id.dart';
 import 'package:logic/src/data/township.dart';
 import 'package:logic/src/tick.dart';
@@ -59,6 +61,12 @@ const int ticksPerHour = 36000;
 
 /// Ticks per season cycle (3 days).
 const int ticksPerSeasonCycle = ticksPerHour * 24 * 3;
+
+/// Ticks between casual task assignments (5 hours).
+const int ticksPerCasualTask = ticksPerHour * 5;
+
+/// The most casual tasks a town can have assigned at once.
+const int maxActiveCasualTasks = 5;
 
 /// State for a single building type in a biome.
 @immutable
@@ -213,6 +221,8 @@ class TownshipState {
     this.ticksUntilUpdate = ticksPerHour,
     this.tasks = const {},
     this.completedMainTasks = const {},
+    this.activeCasualTasks = const [],
+    this.casualTaskTicksRemaining = 0,
   });
 
   const TownshipState.empty() : this(registry: const TownshipRegistry.empty());
@@ -264,6 +274,11 @@ class TownshipState {
         .map((e) => MelvorId.fromJson(e as String))
         .toSet();
 
+    final activeCasualJson = json['activeCasualTasks'] as List<dynamic>? ?? [];
+    final activeCasualTasks = activeCasualJson
+        .map((e) => MelvorId.fromJson(e as String))
+        .toList();
+
     return TownshipState(
       registry: registry,
       biomes: biomes,
@@ -281,6 +296,8 @@ class TownshipState {
       ticksUntilUpdate: json['ticksUntilUpdate'] as int? ?? ticksPerHour,
       tasks: tasks,
       completedMainTasks: completedMainTasks,
+      activeCasualTasks: activeCasualTasks,
+      casualTaskTicksRemaining: json['casualTaskTicksRemaining'] as int? ?? 0,
     );
   }
 
@@ -319,11 +336,19 @@ class TownshipState {
   /// Ticks remaining until the next town update.
   final Tick ticksUntilUpdate;
 
-  /// Active casual tasks (taskId -> task state).
+  /// Tracked progress for main and active casual tasks
+  /// (taskId -> task state).
   final Map<MelvorId, TownshipTaskState> tasks;
 
   /// Set of completed main task IDs.
   final Set<MelvorId> completedMainTasks;
+
+  /// Casual task IDs currently assigned, oldest first.
+  final List<MelvorId> activeCasualTasks;
+
+  /// Ticks until the next casual task is assigned. Zero means one is due
+  /// now, so a new town gets its first casual task straight away.
+  final Tick casualTaskTicksRemaining;
 
   /// Base storage capacity.
   static const int baseStorage = 50000;
@@ -521,6 +546,31 @@ class TownshipState {
     return progress.progress[goalKey] ?? 0;
   }
 
+  /// Assigns a random casual task from [candidates], skipping any that are
+  /// already active. Does nothing if [maxActiveCasualTasks] are active or no
+  /// candidate is left.
+  TownshipState assignCasualTask(
+    Iterable<TownshipTask> candidates,
+    Random random,
+  ) {
+    if (activeCasualTasks.length >= maxActiveCasualTasks) return this;
+    final available = candidates
+        .where((task) => !activeCasualTasks.contains(task.id))
+        .toList();
+    if (available.isEmpty) return this;
+    final task = available[random.nextInt(available.length)];
+    return copyWith(activeCasualTasks: [...activeCasualTasks, task.id]);
+  }
+
+  /// Removes an assigned casual task and discards its progress, so it starts fresh
+  /// if assigned again.
+  TownshipState removeCasualTask(MelvorId taskId) {
+    return copyWith(
+      activeCasualTasks: activeCasualTasks.where((id) => id != taskId).toList(),
+      tasks: Map<MelvorId, TownshipTaskState>.from(tasks)..remove(taskId),
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Worship Methods
   // ---------------------------------------------------------------------------
@@ -665,6 +715,8 @@ class TownshipState {
     Tick? ticksUntilUpdate,
     Map<MelvorId, TownshipTaskState>? tasks,
     Set<MelvorId>? completedMainTasks,
+    List<MelvorId>? activeCasualTasks,
+    Tick? casualTaskTicksRemaining,
   }) {
     return TownshipState(
       registry: registry,
@@ -678,6 +730,9 @@ class TownshipState {
       ticksUntilUpdate: ticksUntilUpdate ?? this.ticksUntilUpdate,
       tasks: tasks ?? this.tasks,
       completedMainTasks: completedMainTasks ?? this.completedMainTasks,
+      activeCasualTasks: activeCasualTasks ?? this.activeCasualTasks,
+      casualTaskTicksRemaining:
+          casualTaskTicksRemaining ?? this.casualTaskTicksRemaining,
     );
   }
 
@@ -779,6 +834,8 @@ class TownshipState {
       ticksUntilUpdate: ticksUntilUpdate,
       tasks: tasks,
       completedMainTasks: completedMainTasks,
+      activeCasualTasks: activeCasualTasks,
+      casualTaskTicksRemaining: casualTaskTicksRemaining,
     );
   }
 
@@ -808,6 +865,10 @@ class TownshipState {
         'completedMainTasks': completedMainTasks
             .map((e) => e.toJson())
             .toList(),
+      if (activeCasualTasks.isNotEmpty)
+        'activeCasualTasks': activeCasualTasks.map((e) => e.toJson()).toList(),
+      if (casualTaskTicksRemaining != 0)
+        'casualTaskTicksRemaining': casualTaskTicksRemaining,
     };
   }
 }

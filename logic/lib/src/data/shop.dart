@@ -230,6 +230,7 @@ sealed class ShopRequirement extends Equatable {
       'SlayerTask' => SlayerTaskRequirement.fromJson(json),
       'TownshipBuilding' => TownshipBuildingRequirement.fromJson(json),
       'AllSkillLevels' => AllSkillLevelsRequirement.fromJson(json),
+      'ItemFound' => ItemFoundRequirement.fromJson(json, namespace: namespace),
       _ => null, // Ignore unsupported requirement types
     };
   }
@@ -319,6 +320,37 @@ class DungeonCompletionRequirement extends ShopRequirement {
 
   @override
   List<Object?> get props => [dungeonId, count];
+}
+
+/// Requires having found an item.
+///
+/// We don't keep an item log yet, so this is approximated by the item being
+/// in the bank or equipped right now.
+@immutable
+class ItemFoundRequirement extends ShopRequirement {
+  const ItemFoundRequirement({required this.itemId});
+
+  factory ItemFoundRequirement.fromJson(
+    Map<String, dynamic> json, {
+    required String namespace,
+  }) {
+    return ItemFoundRequirement(
+      itemId: MelvorId.fromJsonWithNamespace(
+        json['itemID'] as String,
+        defaultNamespace: namespace,
+      ),
+    );
+  }
+
+  final MelvorId itemId;
+
+  @override
+  bool isMet(GlobalState state) =>
+      state.equipment.hasItemEquipped(itemId) ||
+      state.inventory.countById(itemId) > 0;
+
+  @override
+  List<Object?> get props => [itemId];
 }
 
 /// Requires completing a certain number of Township tasks.

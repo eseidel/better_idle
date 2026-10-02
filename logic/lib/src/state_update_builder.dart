@@ -283,13 +283,12 @@ class StateUpdateBuilder {
     final tasks = index[skill.id];
     if (tasks == null) return;
 
-    final township = _state.township;
-    final completedTasks = township.completedMainTasks;
+    final completedTasks = _state.township.completedMainTasks;
 
     for (final task in tasks) {
       if (completedTasks.contains(task.id)) continue;
       _state = _state.copyWith(
-        township: township.updateTaskProgress(
+        township: _state.township.updateTaskProgress(
           task.id,
           TaskGoalType.skillXP,
           skill.id,
@@ -316,27 +315,35 @@ class StateUpdateBuilder {
     // Track for welcome back dialog
     _changes = _changes.recordingMonsterKill(monsterId);
 
-    // Track for township task progress
+    // Track for township task progress: unclaimed main tasks and assigned
+    // casual tasks.
     final township = _state.township;
-    final completedTasks = township.completedMainTasks;
-
-    for (final task in township.registry.tasks) {
-      // Skip completed tasks
-      if (completedTasks.contains(task.id)) continue;
-
-      // Check if this task has a goal for this monster
+    final registry = township.registry;
+    final tasks = [
+      for (final task in registry.tasks)
+        if (!township.completedMainTasks.contains(task.id)) task,
+      for (final id in township.activeCasualTasks) registry.taskById(id),
+    ];
+    for (final task in tasks) {
       for (final goal in task.goals) {
-        if (goal.type == TaskGoalType.monsters && goal.id == monsterId) {
-          _state = _state.copyWith(
-            township: township.updateTaskProgress(
-              task.id,
-              TaskGoalType.monsters,
-              monsterId,
-              1,
-            ),
-          );
-          break;
-        }
+        if (goal.id != monsterId) continue;
+        final counts = switch (goal.type) {
+          TaskGoalType.monsters => true,
+          TaskGoalType.monsterWithItems => goal.itemIds.every(
+            _state.equipment.hasItemEquipped,
+          ),
+          TaskGoalType.items || TaskGoalType.skillXP => false,
+        };
+        if (!counts) continue;
+        _state = _state.copyWith(
+          township: _state.township.updateTaskProgress(
+            task.id,
+            goal.type,
+            monsterId,
+            1,
+          ),
+        );
+        break;
       }
     }
   }
@@ -1016,6 +1023,7 @@ class StateUpdateBuilder {
     if (_state.township.worshipId != null) {
       updateMin(_state.township.seasonTicksRemaining);
       updateMin(_state.township.ticksUntilUpdate);
+      updateMin(_state.township.casualTaskTicksRemaining);
     }
 
     // 7. Passive cooking timers (only when actively cooking)

@@ -2581,22 +2581,74 @@ class GlobalState {
         return inventory.countOfItem(item) >= goal.quantity;
       case TaskGoalType.skillXP:
       case TaskGoalType.monsters:
+      case TaskGoalType.monsterWithItems:
         // Check progress tracked in township state
         return township.getGoalProgress(taskId, goal) >= goal.quantity;
     }
   }
 
-  /// Checks if all goals for a task are met.
+  /// Checks if all goals for a task are met and it can be claimed: a main
+  /// task must not already be claimed, a casual task must be assigned.
   bool isTaskComplete(MelvorId taskId) {
     final task = registries.township.taskById(taskId);
 
-    // Check if already completed
-    if (township.completedMainTasks.contains(taskId)) {
-      return false; // Already claimed
-    }
+    final isClaimable = task.isCasual
+        ? township.activeCasualTasks.contains(taskId)
+        : !township.completedMainTasks.contains(taskId);
+    if (!isClaimable) return false;
 
     // Check all goals are met
     return task.goals.every((goal) => isTaskGoalMet(taskId, goal));
+  }
+
+  /// Casual tasks whose requirements the player meets, i.e. the pool new
+  /// casual tasks are drawn from.
+  Iterable<TownshipTask> get eligibleCasualTasks => registries
+      .township
+      .casualTasks
+      .where((task) => task.requirements.every((req) => req.isMet(this)));
+
+  /// XP needed to go from the start of the current Township level to the
+  /// next one (or the span of the final level, once maxed).
+  int get _townshipLevelSpan {
+    final level = min(skillState(Skill.town).skillLevel, maxLevel - 1);
+    return startXpForLevel(level + 1) - startXpForLevel(level);
+  }
+
+  /// The rewards claiming [task] would grant right now.
+  ///
+  /// Main task rewards are fixed. Casual task GP, Slayer Coin and Township
+  /// XP rewards scale with the player: XP is 9% of the current Township
+  /// level's span, GP is 5x that, and Slayer Coins are 1000x Slayer level.
+  /// Township resource rewards are fixed.
+  List<TaskReward> taskRewards(TownshipTask task) {
+    if (!task.isCasual) return task.rewards;
+    final townshipXp = (_townshipLevelSpan * 0.09).floor();
+    return [
+      for (final reward in task.rewards)
+        switch (reward) {
+          TaskReward(type: TaskRewardType.skillXP) => TaskReward(
+            type: TaskRewardType.skillXP,
+            id: Skill.town.id,
+            quantity: townshipXp,
+          ),
+          TaskReward(type: TaskRewardType.currency)
+              when reward.id == Currency.gp.id =>
+            TaskReward(
+              type: TaskRewardType.currency,
+              id: reward.id,
+              quantity: townshipXp * 5,
+            ),
+          TaskReward(type: TaskRewardType.currency)
+              when reward.id == Currency.slayerCoins.id =>
+            TaskReward(
+              type: TaskRewardType.currency,
+              id: reward.id,
+              quantity: skillState(Skill.slayer).skillLevel * 1000,
+            ),
+          _ => reward,
+        },
+    ];
   }
 
   /// Claims rewards for a completed task, returning new state and changes.
@@ -2624,7 +2676,8 @@ class GlobalState {
     }
 
     // Grant rewards
-    for (final reward in task.rewards) {
+    final rewards = taskRewards(task);
+    for (final reward in rewards) {
       switch (reward.type) {
         case TaskRewardType.skillXP:
           // Map skill ID to Skill enum
@@ -2647,17 +2700,50 @@ class GlobalState {
       }
     }
 
-    // Mark task as completed (all main tasks go to completedMainTasks)
-    final newCompleted = Set<MelvorId>.from(township.completedMainTasks)
-      ..add(taskId);
-    final newState = state.copyWith(
-      township: state.township.copyWith(completedMainTasks: newCompleted),
-    );
+    // Casual tasks go back into the pool; main tasks are done for good.
+    final TownshipState newTownship;
+    if (task.isCasual) {
+      newTownship = state.township.removeCasualTask(taskId);
+    } else {
+      newTownship = state.township.copyWith(
+        completedMainTasks: {...township.completedMainTasks, taskId},
+      );
+    }
+    final newState = state.copyWith(township: newTownship);
 
     // Get changes for the UI to display
-    final changes = task.rewardsToChanges(registries.items);
+    final changes = TaskReward.toChanges(rewards, registries.items);
 
     return (newState, changes);
+  }
+
+  /// The most GP skipping a casual task can cost.
+  static const int maxCasualTaskSkipCost = 10000000;
+
+  /// GP cost to skip a casual task: the XP still needed to reach the next
+  /// Township level, capped at [maxCasualTaskSkipCost] (which is also the
+  /// cost once there is no next level).
+  int get casualTaskSkipCost {
+    final xp = skillState(Skill.town).xp;
+    final level = levelForXp(xp);
+    if (level >= maxLevel) return maxCasualTaskSkipCost;
+    return min(startXpForLevel(level + 1) - xp, maxCasualTaskSkipCost);
+  }
+
+  /// Discards an assigned casual task for [casualTaskSkipCost] GP.
+  /// Throws StateError if the task isn't assigned or GP is short.
+  GlobalState skipCasualTask(MelvorId taskId) {
+    if (!township.activeCasualTasks.contains(taskId)) {
+      throw StateError('Casual task $taskId is not assigned');
+    }
+    final cost = casualTaskSkipCost;
+    if (currency(Currency.gp) < cost) {
+      throw StateError('Not enough GP to skip task: need $cost');
+    }
+    return addCurrency(
+      Currency.gp,
+      -cost,
+    ).copyWith(township: township.removeCasualTask(taskId));
   }
 
   // ---------------------------------------------------------------------------
