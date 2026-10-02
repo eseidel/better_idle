@@ -383,3 +383,20 @@ class ModifierDataSet extends Equatable {
   @override
   List<Object?> get props => [modifiers];
 }
+
+/// Extension for converting modifier values (stored as percentage points
+/// on a 100-base scale) to double fractions.
+///
+/// Many Melvor modifiers are stored as numbers where 100 = 100%.
+/// For example, a modifier value of -20 means -20%, which as a fraction
+/// is -0.20.
+extension ModifierPercentage on num {
+  /// Converts a 100-base percentage to a double fraction.
+  ///
+  /// Example: `(-20).toPercent()` returns `-0.2`.
+  double toPercent() => this / 100.0;
+}
+
+/// Maximum item cost reduction for agility obstacles (95%) when the
+/// `agilityItemCostReductionCanReach100` modifier is not active.
+const double maxAgilityItemCostReduction = 0.95;
