@@ -93,7 +93,7 @@ jobs:
           dart pub global activate coverage && \
           dart test --coverage=coverage && \
           dart pub global run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --report-on=lib --check-ignore
-      - uses: codecov/codecov-action@v6
+      - uses: codecov/codecov-action@v7
         with:
           flags: ${{ matrix.name }}
 
@@ -140,7 +140,7 @@ jobs:
       - name: Integration Tests
         if: matrix.has_integration_tests == true
         run: flutter test integration_test
-      - uses: codecov/codecov-action@v6
+      - uses: codecov/codecov-action@v7
         with:
           flags: ${{ matrix.name }}
 
